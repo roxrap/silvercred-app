@@ -11,54 +11,44 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-import streamlit as st
 
 # Lista blanca de correos autorizados
-EMAILS_AUTORIZADOS = [
-    "dardof@hotmail.com",
-    "carlosl.snyder@gmail.com",
-    "roxana.rapali@gmail.com",
-    "cofineslitoral@gmail.com",
-    "ficomsanjavier@gmail.com",
-    "silvercred.st@gmail.com",
-]
+#EMAILS_AUTORIZADOS = [
+#    "dardof@hotmail.com",
+#    "carlosl.snyder@gmail.com",
+#    "roxana.rapali@gmail.com",
+#    "cofineslitoral@gmail.com",
+#    "ficomsanjavier@gmail.com",
+#    "silvercred.st@gmail.com",
+#]
 
 # Inicializar estado de sesión para el control de acceso
-if "autenticado" not in st.session_state:
-  st.session_state.autenticado = False
+#if "autenticado" not in st.session_state:
+#  st.session_state.autenticado = False
 
 # Pantalla de Login si no está autenticado
-if not st.session_state.autenticado:
-  st.title("🔐 Silvercred - Control de Acceso")
-  st.write(
-      "Por favor, ingresa tu correo electrónico autorizado para acceder al"
-      " sistema."
-  )
+#if not st.session_state.autenticado:
+#  st.title("🔐 Silvercred - Control de Acceso")
+#  st.write(
+#      "Por favor, ingresa tu correo electrónico autorizado para acceder al"
+#      " sistema."
+#  )
 
-  email_ingresado = st.text_input("Correo electrónico")
+#  email_ingresado = st.text_input("Correo electrónico")
 
-  if st.button("Ingresar"):
-    if email_ingresado.strip().lower() in EMAILS_AUTORIZADOS:
-      st.session_state.autenticado = True
-      st.success("¡Acceso concedido! Cargando sistema...")
-      st.rerun()
-    else:
-      st.error(
-          "Acceso denegado. El correo ingresado no cuenta con permisos"
-          " autorizados."
-      )
+#  if st.button("Ingresar"):
+#    if email_ingresado.strip().lower() in EMAILS_AUTORIZADOS:
+#      st.session_state.autenticado = True
+#      st.success("¡Acceso concedido! Cargando sistema...")
+#      st.rerun()
+#    else:
+#      st.error(
+#          "Acceso denegado. El correo ingresado no cuenta con permisos"
+#          " autorizados."
+#      )
 
   # Detener la ejecución del resto de la app hasta que se autentique
-  st.stop()
-
-# --- AQUÍ COMIENZA EL RESTO DE TU APLICACIÓN ACTUAL ---
-st.title("💳 Silvercred - Sistema de Evaluación Crediticia")
-st.write(
-    "Ingresa los datos del cliente, sube la documentación y el sistema"
-    " procesará los respaldos, el dictamen y volcará todos los datos a la"
-    " planilla de auditoría."
-)
-
+#  st.stop()
 
 
 
