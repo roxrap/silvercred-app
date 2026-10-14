@@ -1,4 +1,3 @@
-cat << 'EOF' > streamlit_app.py
 import streamlit as st
 import os
 import tempfile
@@ -374,4 +373,3 @@ if st.session_state.analisis_resultado:
         )
         
     st.markdown(st.session_state.analisis_resultado)
-EOF
