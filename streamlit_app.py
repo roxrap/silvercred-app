@@ -7,7 +7,6 @@ from datetime import datetime
 from google import genai
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
@@ -16,7 +15,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- INICIALIZACIÓN DE CLIENTE GEMINI Y SERVICIOS GOOGLE (NUBE / SECRETS) ---
+# --- INICIALIZACIÓN DE CLIENTE GEMINI Y SERVICIOS GOOGLE (SHEETS) ---
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 client = genai.Client(api_key=GEMINI_API_KEY)
 
@@ -26,10 +25,10 @@ def init_google_services():
         credentials_dict = dict(st.secrets["gcp_service_account"])
         gcp_creds = service_account.Credentials.from_service_account_info(
             credentials_dict,
-            scopes=['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/spreadsheets']
+            scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.readonly']
         )
-        drive_service = build('drive', 'v3', credentials=gcp_creds)
         sheets_service = build('sheets', 'v4', credentials=gcp_creds)
+        drive_service = build('drive', 'v3', credentials=gcp_creds)
         return drive_service, sheets_service
     except Exception as e:
         st.error(f"Error al conectar con los servicios de Google mediante secretos: {e}")
@@ -37,38 +36,7 @@ def init_google_services():
 
 drive_service, sheets_service = init_google_services()
 
-# --- FUNCIONES DE DRIVE Y SHEETS ---
-def obtener_o_crear_carpeta(nombre_carpeta, parent_id=None):
-    if not drive_service:
-        return None, None
-    
-    # Si es la carpeta principal 'Clientes', usamos directamente tu ID fijo de Google Drive
-    if nombre_carpeta == "Clientes":
-        return "1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7", "https://drive.google.com/drive/folders/1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7"
-    
-    # Para subcarpetas de clientes individuales
-    query = f"name = '{nombre_carpeta}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
-    if parent_id:
-        query += f" and '{parent_id}' in parents"
-    
-    try:
-        results = drive_service.files().list(q=query, spaces='drive', fields='files(id, name, webViewLink)').execute()
-        folders = results.get('files', [])
-        if folders:
-            return folders[0]['id'], folders[0].get('webViewLink')
-        else:
-            file_metadata = {
-                'name': nombre_carpeta,
-                'mimeType': 'application/vnd.google-apps.folder'
-            }
-            if parent_id:
-                file_metadata['parents'] = [parent_id]
-            folder = drive_service.files().create(body=file_metadata, fields='id, webViewLink',supportsAllDrives=True,).execute()
-            return folder.get('id'), folder.get('webViewLink')
-    except Exception as e:
-        st.error(f"Error en Google Drive al gestionar la carpeta {nombre_carpeta}: {e}")
-        return None, None
-
+# --- FUNCIONES DE PLANILLA DE AUDITORÍA ---
 def obtener_o_crear_planilla_auditoria():
     if not drive_service or not sheets_service:
         return None
@@ -90,7 +58,7 @@ def obtener_o_crear_planilla_auditoria():
             'Fecha y Hora', 'Cliente', 'Tipo Operación', 'Modelo IA y Tiempo', 'Resultado Dictamen',
             'Ingreso Neto Comprobado', 'Situación Laboral', 'Antigüedad Laboral', 'Cuota Máxima (30% Neto)', 'Monto Máximo Disponible',
             'BCRA', 'Score Equifax', 'Reporte Credixsa', 'Antecedentes Negativos', 'Evolución de Deuda',
-            'Compromiso Mensual Inferido', 'Margen Disponible Cuota', 'Alertas Técnicas', 'Fundamento Técnico', 'Límite de Cuota Sugerido', 'Enlace Carpeta Drive'
+            'Compromiso Mensual Inferido', 'Margen Disponible Cuota', 'Alertas Técnicas', 'Fundamento Técnico', 'Límite de Cuota Sugerido', 'Estado Archivos'
         ]]
         sheets_service.spreadsheets().values().append(
             spreadsheetId=spreadsheet_id,
@@ -106,7 +74,7 @@ def extraer_campo_texto(texto, patron):
         return match.group(1).strip()
     return "N/D"
 
-def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, link_drive):
+def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, estado_archivos):
     try:
         spreadsheet_id = obtener_o_crear_planilla_auditoria()
         if not spreadsheet_id:
@@ -144,7 +112,7 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
                 fecha_hora, cliente, tipo_op, modelo_y_tiempo, resultado,
                 ingreso_neto, sit_laboral, antiguedad, cuota_max, monto_max,
                 bcra, equifax, credixsa, antecedentes, evolucion,
-                compromiso, margen, alertas.replace('\n', ' | '), fundamento.replace('\n', ' '), limite_sugerido, link_drive if link_drive else "N/A"
+                compromiso, margen, alertas.replace('\n', ' | '), fundamento.replace('\n', ' '), limite_sugerido, estado_archivos
             ]]
         }
         sheets_service.spreadsheets().values().append(
@@ -235,7 +203,7 @@ with st.sidebar:
     st.markdown("### 🏢 Sucursales operativas")
     st.markdown("- Santa Fe\n- San Javier")
     st.markdown("---")
-    st.info("Módulo Activo: Análisis Crediticio con Auditoría Sheets Detallada")
+    st.info("Módulo Activo: Análisis Crediticio con Auditoría Sheets")
 
 # --- INICIALIZAR ESTADO DE SESIÓN ---
 if "analisis_resultado" not in st.session_state:
@@ -244,18 +212,14 @@ if "modelo_usado" not in st.session_state:
     st.session_state.modelo_usado = None
 if "tiempo_total" not in st.session_state:
     st.session_state.tiempo_total = None
-if "folder_link_url" not in st.session_state:
-    st.session_state.folder_link_url = None
 if "nombre_cliente" not in st.session_state:
     st.session_state.nombre_cliente = None
 if "tipo_operacion" not in st.session_state:
     st.session_state.tipo_operacion = None
-if "links_drive" not in st.session_state:
-    st.session_state.links_drive = []
 
 # --- INTERFAZ PRINCIPAL ---
 st.title("💳 Silvercred - Sistema de Evaluación Crediticia")
-st.markdown("Ingresa los datos del cliente, sube la documentación y el sistema procesará los respaldos, el dictamen y volcará todos los datos a la planilla de auditoría.")
+st.markdown("Ingresa los datos del cliente, sube la documentación y el sistema procesará el dictamen de riesgo y registrará la auditoría en Google Sheets.")
 
 with st.form("form_cliente"):
     col_1, col_2 = st.columns(2)
@@ -283,7 +247,6 @@ if submitted:
     else:
         st.session_state.nombre_cliente = nombre_cliente_input.strip().upper()
         st.session_state.tipo_operacion = tipo_op_input
-        st.session_state.links_drive = []
         
         with st.status("🚀 Ejecutando protocolo de análisis crediticio Silvercred...", expanded=True) as status:
             paths_dict = {}
@@ -301,32 +264,6 @@ if submitted:
                     tmp.write(archivo_credixsa.getvalue())
                     paths_dict['credixsa'] = tmp.name
 
-            st.write("☁️ Subiendo documentos directamente a la carpeta principal 'Clientes'...")
-            id_clientes_root = "1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7"
-            st.session_state.folder_link_url = "https://drive.google.com/drive/folders/1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7"
-            time.sleep(0.3)
-
-if archivo_recibo:
-  # file_meta = {'name': f"{st.session_state.nombre_cliente} - {st.session_state.tipo_operacion}_Recibo.pdf", 'parents': [id_clientes_root]}
-  # media = MediaFileUpload(paths_dict['recibo'], resumable=True)
-  # f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
-  st.session_state.links_drive.append(
-      "Recibo procesado para análisis local."
-  )
-if archivo_veraz:
-  # file_meta = {'name': f"{st.session_state.nombre_cliente} - {st.session_state.tipo_operacion}_Veraz.pdf", 'parents': [id_clientes_root]}
-  # media = MediaFileUpload(paths_dict['veraz'], resumable=True)
-  # f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
-  st.session_state.links_drive.append("Veraz procesado para análisis local.")
-if archivo_credixsa:
-  # file_meta = {'name': f"{st.session_state.nombre_cliente} - {st.session_state.tipo_operacion}_Credixsa.pdf", 'parents': [id_clientes_root]}
-  # media = MediaFileUpload(paths_dict['credixsa'], resumable=True)
-  # f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
-  st.session_state.links_drive.append(
-      "Credixsa procesado para análisis local."
-  )
-
-
             st.write("🧠 Conectando con la red de modelos Gemini y aplicando matriz de riesgo...")
             st.session_state.analisis_resultado, st.session_state.modelo_usado, st.session_state.tiempo_total = analizar_credito_con_fallback(
                 paths_dict, st.session_state.tipo_operacion, st.session_state.nombre_cliente
@@ -339,7 +276,7 @@ if archivo_credixsa:
                 st.session_state.modelo_usado,
                 st.session_state.tiempo_total,
                 st.session_state.analisis_resultado,
-                st.session_state.folder_link_url
+                "Procesado localmente para análisis de riesgo"
             )
             
             for p in paths_dict.values():
@@ -353,14 +290,6 @@ if st.session_state.analisis_resultado:
     
     fecha_hora_actual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     
-    if st.session_state.folder_link_url:
-        st.markdown(f"📁 **Respaldos organizados en Google Drive:** [Carpeta del cliente: {st.session_state.nombre_cliente}]({st.session_state.folder_link_url})")
-    else:
-        st.markdown(f"📁 **Respaldos organizados en Google Drive (Carpeta del cliente: `{st.session_state.nombre_cliente}`):**")
-        
-    for link in st.session_state.links_drive:
-        st.markdown(f"- {link}")
-        
     st.info(f"📊 **Información de Rendimiento e IA:** Modelo utilizado: **{st.session_state.modelo_usado}** | Tiempo: **{st.session_state.tiempo_total} segundos** | Procesado el: **{fecha_hora_actual}** | 📝 *Campos volcados a planilla Google Sheets*")
     
     st.markdown("---")
