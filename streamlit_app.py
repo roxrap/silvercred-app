@@ -301,28 +301,26 @@ if submitted:
                     tmp.write(archivo_credixsa.getvalue())
                     paths_dict['credixsa'] = tmp.name
 
-            st.write(f"📁 Creando carpeta en Google Drive bajo la ruta 'Clientes/{st.session_state.nombre_cliente}'...")
+            st.write("☁️ Subiendo documentos directamente a la carpeta principal 'Clientes'...")
             id_clientes_root = "1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7"
-            id_cliente_folder, st.session_state.folder_link_url = obtener_o_crear_carpeta(st.session_state.nombre_cliente, parent_id=id_clientes_root)
-            time.sleep(0.5)
+            st.session_state.folder_link_url = "https://drive.google.com/drive/folders/1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7"
+            time.sleep(0.3)
 
-            st.write("☁️ Subiendo documentos organizados a Google Drive...")
-            if id_cliente_folder:
-                if archivo_recibo:
-                    file_meta = {'name': f"{st.session_state.tipo_operacion}_Recibo.pdf", 'parents': [id_cliente_folder]}
-                    media = MediaFileUpload(paths_dict['recibo'], resumable=True)
-                    f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink').execute()
-                    st.session_state.links_drive.append(f"Recibo: [Ver en Drive]({f_info.get('webViewLink')})")
-                if archivo_veraz:
-                    file_meta = {'name': f"{st.session_state.tipo_operacion}_Veraz.pdf", 'parents': [id_cliente_folder]}
-                    media = MediaFileUpload(paths_dict['veraz'], resumable=True)
-                    f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink').execute()
-                    st.session_state.links_drive.append(f"Veraz: [Ver en Drive]({f_info.get('webViewLink')})")
-                if archivo_credixsa:
-                    file_meta = {'name': f"{st.session_state.tipo_operacion}_Credixsa.pdf", 'parents': [id_cliente_folder]}
-                    media = MediaFileUpload(paths_dict['credixsa'], resumable=True)
-                    f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink').execute()
-                    st.session_state.links_drive.append(f"Credixsa: [Ver en Drive]({f_info.get('webViewLink')})")
+            if archivo_recibo:
+                file_meta = {'name': f"{st.session_state.nombre_cliente} - {st.session_state.tipo_operacion}_Recibo.pdf", 'parents': [id_clientes_root]}
+                media = MediaFileUpload(paths_dict['recibo'], resumable=True)
+                f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
+                st.session_state.links_drive.append(f"Recibo: [Ver en Drive]({f_info.get('webViewLink')})")
+            if archivo_veraz:
+                file_meta = {'name': f"{st.session_state.nombre_cliente} - {st.session_state.tipo_operacion}_Veraz.pdf", 'parents': [id_clientes_root]}
+                media = MediaFileUpload(paths_dict['veraz'], resumable=True)
+                f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
+                st.session_state.links_drive.append(f"Veraz: [Ver en Drive]({f_info.get('webViewLink')})")
+            if archivo_credixsa:
+                file_meta = {'name': f"{st.session_state.nombre_cliente} - {st.session_state.tipo_operacion}_Credixsa.pdf", 'parents': [id_clientes_root]}
+                media = MediaFileUpload(paths_dict['credixsa'], resumable=True)
+                f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
+                st.session_state.links_drive.append(f"Credixsa: [Ver en Drive]({f_info.get('webViewLink')})")
 
             st.write("🧠 Conectando con la red de modelos Gemini y aplicando matriz de riesgo...")
             st.session_state.analisis_resultado, st.session_state.modelo_usado, st.session_state.tiempo_total = analizar_credito_con_fallback(
