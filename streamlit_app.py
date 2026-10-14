@@ -306,21 +306,26 @@ if submitted:
             st.session_state.folder_link_url = "https://drive.google.com/drive/folders/1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7"
             time.sleep(0.3)
 
-            if archivo_recibo:
-                file_meta = {'name': f"{st.session_state.nombre_cliente} - {st.session_state.tipo_operacion}_Recibo.pdf", 'parents': [id_clientes_root]}
-                media = MediaFileUpload(paths_dict['recibo'], resumable=True)
-                f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
-                st.session_state.links_drive.append(f"Recibo: [Ver en Drive]({f_info.get('webViewLink')})")
-            if archivo_veraz:
-                file_meta = {'name': f"{st.session_state.nombre_cliente} - {st.session_state.tipo_operacion}_Veraz.pdf", 'parents': [id_clientes_root]}
-                media = MediaFileUpload(paths_dict['veraz'], resumable=True)
-                f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
-                st.session_state.links_drive.append(f"Veraz: [Ver en Drive]({f_info.get('webViewLink')})")
-            if archivo_credixsa:
-                file_meta = {'name': f"{st.session_state.nombre_cliente} - {st.session_state.tipo_operacion}_Credixsa.pdf", 'parents': [id_clientes_root]}
-                media = MediaFileUpload(paths_dict['credixsa'], resumable=True)
-                f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
-                st.session_state.links_drive.append(f"Credixsa: [Ver en Drive]({f_info.get('webViewLink')})")
+if archivo_recibo:
+  # file_meta = {'name': f"{st.session_state.nombre_cliente} - {st.session_state.tipo_operacion}_Recibo.pdf", 'parents': [id_clientes_root]}
+  # media = MediaFileUpload(paths_dict['recibo'], resumable=True)
+  # f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
+  st.session_state.links_drive.append(
+      "Recibo procesado para análisis local."
+  )
+if archivo_veraz:
+  # file_meta = {'name': f"{st.session_state.nombre_cliente} - {st.session_state.tipo_operacion}_Veraz.pdf", 'parents': [id_clientes_root]}
+  # media = MediaFileUpload(paths_dict['veraz'], resumable=True)
+  # f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
+  st.session_state.links_drive.append("Veraz procesado para análisis local.")
+if archivo_credixsa:
+  # file_meta = {'name': f"{st.session_state.nombre_cliente} - {st.session_state.tipo_operacion}_Credixsa.pdf", 'parents': [id_clientes_root]}
+  # media = MediaFileUpload(paths_dict['credixsa'], resumable=True)
+  # f_info = drive_service.files().create(body=file_meta, media_body=media, fields='id, webViewLink', supportsAllDrives=True).execute()
+  st.session_state.links_drive.append(
+      "Credixsa procesado para análisis local."
+  )
+
 
             st.write("🧠 Conectando con la red de modelos Gemini y aplicando matriz de riesgo...")
             st.session_state.analisis_resultado, st.session_state.modelo_usado, st.session_state.tiempo_total = analizar_credito_con_fallback(
