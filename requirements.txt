@@ -1,0 +1,6 @@
+git init
+git add streamlit_app.py logo.png requirements.txt
+git commit -m "MVP Silvercred - Sistema de Evaluacion Crediticia"
+git branch -M main
+git remote add origin https://github.com/roxrap/silvercred-app.git
+git push -u origin main
