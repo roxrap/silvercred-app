@@ -45,10 +45,17 @@ def init_google_services():
 
 drive_service, sheets_service = init_google_services()
 
-
 def obtener_o_crear_carpeta(nombre_carpeta, parent_id=None):
   if not drive_service:
     return None, None
+  # Si es la carpeta principal 'Clientes', utilizamos el ID directo de tu Google Drive
+  if nombre_carpeta == "Clientes":
+    return (
+        "1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7",
+        "https://drive.google.com/drive/folders/1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7",
+    )
+
+  # Para las subcarpetas individuales de cada cliente dentro de 'Clientes':
   query = f"name = '{nombre_carpeta}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
   if parent_id:
     query += f" and '{parent_id}' in parents"
