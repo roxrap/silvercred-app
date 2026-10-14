@@ -22,6 +22,7 @@ client = genai.Client(api_key=API_KEY)
 
 
 @st.cache_resource
+@st.cache_resource
 def init_google_services():
   try:
     credentials_dict = dict(st.secrets["gcp_service_account"])
@@ -36,7 +37,9 @@ def init_google_services():
     sheets_service = build("sheets", "v4", credentials=gcp_creds)
     return drive_service, sheets_service
   except Exception as e:
-    st.error(f"Error al conectar con los servicios de Google mediante secretos: {e}")
+    st.error(
+        f"Error al conectar con los servicios de Google mediante secretos: {e}"
+    )
     return None, None
 
 
