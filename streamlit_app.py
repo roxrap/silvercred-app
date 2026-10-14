@@ -63,7 +63,7 @@ def obtener_o_crear_carpeta(nombre_carpeta, parent_id=None):
             }
             if parent_id:
                 file_metadata['parents'] = [parent_id]
-            folder = drive_service.files().create(body=file_metadata, fields='id, webViewLink').execute()
+            folder = drive_service.files().create(body=file_metadata, fields='id, webViewLink',supportsAllDrives=True,).execute()
             return folder.get('id'), folder.get('webViewLink')
     except Exception as e:
         st.error(f"Error en Google Drive al gestionar la carpeta {nombre_carpeta}: {e}")
