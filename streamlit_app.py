@@ -15,7 +15,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- INICIALIZACIÓN DE CLIENTE GEMINI Y SERVICIOS GOOGLE (SHEETS) ---
+# --- INICIALIZACIÓN DE CLIENTE GEMINI Y SERVICIOS GOOGLE ---
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 client = genai.Client(api_key=GEMINI_API_KEY)
 ID_CARPETA_CLIENTES = "1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7"
@@ -58,13 +58,16 @@ def obtener_o_crear_planilla_auditoria():
             spreadsheet = sheets_service.spreadsheets().create(body=spreadsheet_body, fields='spreadsheetId').execute()
             spreadsheet_id = spreadsheet.get('spreadsheetId')
             
-            # Mover la planilla recién creada directamente a la carpeta de clientes con permisos
-            drive_service.files().update(
-                fileId=spreadsheet_id,
-                addParents=ID_CARPETA_CLIENTES,
-                removeParents='root',
-                fields='id, parents'
-            ).execute()
+            # Mover la planilla recién creada a la carpeta de clientes
+            try:
+                drive_service.files().update(
+                    fileId=spreadsheet_id,
+                    addParents=ID_CARPETA_CLIENTES,
+                    removeParents='root',
+                    fields='id, parents'
+                ).execute()
+            except Exception:
+                pass
             
             header_values = [[
                 'Fecha y Hora', 'Cliente', 'Tipo Operación', 'Modelo IA y Tiempo', 'Resultado Dictamen',
@@ -80,7 +83,7 @@ def obtener_o_crear_planilla_auditoria():
             ).execute()
             return spreadsheet_id
     except Exception as e:
-        print(f"Error creando planilla en carpeta Clientes: {e}")
+        print(f"Error creando planilla: {e}")
         return None
 
 def extraer_campo_texto(texto, patron):
@@ -138,10 +141,10 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
         ).execute()
         return True
     except Exception as e:
+        print(f"Error registrando en Sheet: {e}")
         return False
 
 def analizar_credito_con_fallback(files_dict, tipo_operacion, nombre_cliente):
-    # Modelo requerido por la API actual para nuevos proyectos
     modelos = ['gemini-3.8-flash', 'gemini-2.0-flash']
     inicio = time.time()
     ultimo_error = ""
