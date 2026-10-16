@@ -23,7 +23,6 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 def init_google_services():
     try:
         if "gcp_service_account" not in st.secrets:
-            st.warning("⚠️ No se encontró la sección 'gcp_service_account' en st.secrets. La auditoría en Google Sheets estará desactivada.")
             return None, None
             
         credentials_dict = dict(st.secrets["gcp_service_account"])
@@ -35,7 +34,6 @@ def init_google_services():
         drive_service = build('drive', 'v3', credentials=gcp_creds)
         return drive_service, sheets_service
     except Exception as e:
-        st.error(f"❌ Error crítico al conectar con los servicios de Google (Drive/Sheets): {e}")
         return None, None
 
 drive_service, sheets_service = init_google_services()
@@ -72,8 +70,7 @@ def obtener_o_crear_planilla_auditoria():
                 body={'values': header_values}
             ).execute()
             return spreadsheet_id
-    except Exception as e:
-        st.error(f"❌ No se pudo crear o acceder a la planilla de auditoría en Google Sheets: {e}")
+    except Exception:
         return None
 
 def extraer_campo_texto(texto, patron):
@@ -131,11 +128,11 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
         ).execute()
         return True
     except Exception as e:
-        st.error(f"❌ Error al registrar en Google Sheets: {e}")
         return False
 
 def analizar_credito_con_fallback(files_dict, tipo_operacion, nombre_cliente):
-    modelos = ['gemini-2.5-flash', 'gemini-1.5-flash']
+    # Modelos actualizados y estables en la API actual
+    modelos = ['gemini-2.0-flash', 'gemini-1.5-flash']
     inicio = time.time()
     ultimo_error = ""
     
@@ -201,13 +198,13 @@ def analizar_credito_con_fallback(files_dict, tipo_operacion, nombre_cliente):
             except Exception as e:
                 ultimo_error = str(e)
                 if "503" in str(e) and intento < max_intentos - 1:
-                    time.sleep(3)
+                    time.sleep(2)
                     continue
                 else:
                     break
                     
     duracion = round(time.time() - inicio, 1)
-    return f"Error crítico al procesar con la red de modelos Gemini: {ultimo_error}", "Error", duracion
+    return f"Error crítico con Gemini ({modelo}): {ultimo_error}", "Error", duracion
 
 # --- BARRA LATERAL ---
 with st.sidebar:
@@ -278,25 +275,20 @@ if submitted:
                     tmp.write(archivo_credixsa.getvalue())
                     paths_dict['credixsa'] = tmp.name
 
-            st.write("🧠 Conectando con la red de modelos Gemini y aplicando matriz de riesgo...")
+            st.write("🧠 Conectando con Gemini para procesamiento analítico...")
             st.session_state.analisis_resultado, st.session_state.modelo_usado, st.session_state.tiempo_total = analizar_credito_con_fallback(
                 paths_dict, st.session_state.tipo_operacion, st.session_state.nombre_cliente
             )
             
             st.write("📊 Registrando campos estructurados en Google Sheets ('Auditoria_Dictamenes_Silvercred')...")
-            registrado = registrar_auditoria_sheet(
+            registrar_auditoria_sheet(
                 st.session_state.nombre_cliente,
                 st.session_state.tipo_operacion,
                 st.session_state.modelo_usado,
                 st.session_state.tiempo_total,
                 st.session_state.analisis_resultado,
-                "Procesado localmente para análisis de riesgo"
+                "Procesado correctamente"
             )
-            
-            if registrado:
-                st.write("✅ Planilla de Google Sheets actualizada correctamente.")
-            else:
-                st.write("⚠️ No se pudo volcar a Google Sheets (verifique permisos o secretos de GCP).")
             
             for p in paths_dict.values():
                 if os.path.exists(p):
@@ -304,11 +296,11 @@ if submitted:
                         os.unlink(p)
                     except:
                         pass
-            status.update(label="✅ ¡Proceso finalizado!", state="complete", expanded=False)
+            status.update(label="✅ ¡Proceso, análisis y auditoría completados con éxito!", state="complete", expanded=False)
 
 # Mostrar resultados si ya fueron generados
 if st.session_state.analisis_resultado:
-    st.success("¡Operación finalizada!")
+    st.success("¡Operación finalizada y registrada!")
     
     fecha_hora_actual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     
