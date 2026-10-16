@@ -18,6 +18,7 @@ st.set_page_config(
 # --- INICIALIZACIÓN DE CLIENTE GEMINI Y SERVICIOS GOOGLE (SHEETS) ---
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 client = genai.Client(api_key=GEMINI_API_KEY)
+ID_CARPETA_CLIENTES = "1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7"
 
 @st.cache_resource
 def init_google_services():
@@ -38,13 +39,13 @@ def init_google_services():
 
 drive_service, sheets_service = init_google_services()
 
-# --- FUNCIONES DE PLANILLA DE AUDITORÍA ---
+# --- FUNCIONES DE PLANILLA DE AUDITORÍA EN CARPETA CLIENTES ---
 def obtener_o_crear_planilla_auditoria():
     if not drive_service or not sheets_service:
         return None
     try:
         nombre_planilla = "Auditoria_Dictamenes_Silvercred"
-        query = f"name = '{nombre_planilla}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false"
+        query = f"name = '{nombre_planilla}' and '{ID_CARPETA_CLIENTES}' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false"
         results = drive_service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
         files = results.get('files', [])
         
@@ -56,6 +57,14 @@ def obtener_o_crear_planilla_auditoria():
             }
             spreadsheet = sheets_service.spreadsheets().create(body=spreadsheet_body, fields='spreadsheetId').execute()
             spreadsheet_id = spreadsheet.get('spreadsheetId')
+            
+            # Mover la planilla recién creada directamente a la carpeta de clientes con permisos
+            drive_service.files().update(
+                fileId=spreadsheet_id,
+                addParents=ID_CARPETA_CLIENTES,
+                removeParents='root',
+                fields='id, parents'
+            ).execute()
             
             header_values = [[
                 'Fecha y Hora', 'Cliente', 'Tipo Operación', 'Modelo IA y Tiempo', 'Resultado Dictamen',
@@ -70,7 +79,8 @@ def obtener_o_crear_planilla_auditoria():
                 body={'values': header_values}
             ).execute()
             return spreadsheet_id
-    except Exception:
+    except Exception as e:
+        print(f"Error creando planilla en carpeta Clientes: {e}")
         return None
 
 def extraer_campo_texto(texto, patron):
@@ -131,8 +141,8 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
         return False
 
 def analizar_credito_con_fallback(files_dict, tipo_operacion, nombre_cliente):
-    # Intentamos barrer dinámicamente con los modelos estándar más seguros
-    modelos = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash']
+    # Modelo requerido por la API actual para nuevos proyectos
+    modelos = ['gemini-3.8-flash', 'gemini-2.0-flash']
     inicio = time.time()
     ultimo_error = ""
     
@@ -198,7 +208,6 @@ def analizar_credito_con_fallback(files_dict, tipo_operacion, nombre_cliente):
             except Exception as e:
                 ultimo_error = str(e)
                 if "404" in str(e):
-                    # Si el modelo no existe, salta inmediatamente al siguiente modelo de la lista
                     break
                 elif "503" in str(e) and intento < max_intentos - 1:
                     time.sleep(2)
@@ -278,12 +287,12 @@ if submitted:
                     tmp.write(archivo_credixsa.getvalue())
                     paths_dict['credixsa'] = tmp.name
 
-            st.write("🧠 Conectando con Gemini para procesamiento analítico...")
+            st.write("🧠 Conectando con Gemini (3.8-flash) para procesamiento analítico...")
             st.session_state.analisis_resultado, st.session_state.modelo_usado, st.session_state.tiempo_total = analizar_credito_con_fallback(
                 paths_dict, st.session_state.tipo_operacion, st.session_state.nombre_cliente
             )
             
-            st.write("📊 Registrando campos estructurados en Google Sheets ('Auditoria_Dictamenes_Silvercred')...")
+            st.write("📊 Registrando campos estructurados en Google Sheets dentro de la carpeta 'Clientes'...")
             registrar_auditoria_sheet(
                 st.session_state.nombre_cliente,
                 st.session_state.tipo_operacion,
