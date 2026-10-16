@@ -131,8 +131,8 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
         return False
 
 def analizar_credito_con_fallback(files_dict, tipo_operacion, nombre_cliente):
-    # Modelos actualizados y estables en la API actual
-    modelos = ['gemini-2.0-flash', 'gemini-1.5-flash']
+    # Intentamos barrer dinámicamente con los modelos estándar más seguros
+    modelos = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.5-flash']
     inicio = time.time()
     ultimo_error = ""
     
@@ -197,14 +197,17 @@ def analizar_credito_con_fallback(files_dict, tipo_operacion, nombre_cliente):
             
             except Exception as e:
                 ultimo_error = str(e)
-                if "503" in str(e) and intento < max_intentos - 1:
+                if "404" in str(e):
+                    # Si el modelo no existe, salta inmediatamente al siguiente modelo de la lista
+                    break
+                elif "503" in str(e) and intento < max_intentos - 1:
                     time.sleep(2)
                     continue
                 else:
                     break
                     
     duracion = round(time.time() - inicio, 1)
-    return f"Error crítico con Gemini ({modelo}): {ultimo_error}", "Error", duracion
+    return f"Error crítico con Gemini: {ultimo_error}", "Error", duracion
 
 # --- BARRA LATERAL ---
 with st.sidebar:
