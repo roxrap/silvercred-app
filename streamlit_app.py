@@ -22,16 +22,20 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 @st.cache_resource
 def init_google_services():
     try:
+        if "gcp_service_account" not in st.secrets:
+            st.warning("⚠️ No se encontró la sección 'gcp_service_account' en st.secrets. La auditoría en Google Sheets estará desactivada.")
+            return None, None
+            
         credentials_dict = dict(st.secrets["gcp_service_account"])
         gcp_creds = service_account.Credentials.from_service_account_info(
             credentials_dict,
-            scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive.readonly']
+            scopes=['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/drive.file']
         )
         sheets_service = build('sheets', 'v4', credentials=gcp_creds)
         drive_service = build('drive', 'v3', credentials=gcp_creds)
         return drive_service, sheets_service
     except Exception as e:
-        st.error(f"Error al conectar con los servicios de Google mediante secretos: {e}")
+        st.error(f"❌ Error crítico al conectar con los servicios de Google (Drive/Sheets): {e}")
         return None, None
 
 drive_service, sheets_service = init_google_services()
@@ -40,33 +44,37 @@ drive_service, sheets_service = init_google_services()
 def obtener_o_crear_planilla_auditoria():
     if not drive_service or not sheets_service:
         return None
-    nombre_planilla = "Auditoria_Dictamenes_Silvercred"
-    query = f"name = '{nombre_planilla}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false"
-    results = drive_service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
-    files = results.get('files', [])
-    
-    if files:
-        return files[0]['id']
-    else:
-        spreadsheet_body = {
-            'properties': {'title': nombre_planilla}
-        }
-        spreadsheet = sheets_service.spreadsheets().create(body=spreadsheet_body, fields='spreadsheetId').execute()
-        spreadsheet_id = spreadsheet.get('spreadsheetId')
+    try:
+        nombre_planilla = "Auditoria_Dictamenes_Silvercred"
+        query = f"name = '{nombre_planilla}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false"
+        results = drive_service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
+        files = results.get('files', [])
         
-        header_values = [[
-            'Fecha y Hora', 'Cliente', 'Tipo Operación', 'Modelo IA y Tiempo', 'Resultado Dictamen',
-            'Ingreso Neto Comprobado', 'Situación Laboral', 'Antigüedad Laboral', 'Cuota Máxima (30% Neto)', 'Monto Máximo Disponible',
-            'BCRA', 'Score Equifax', 'Reporte Credixsa', 'Antecedentes Negativos', 'Evolución de Deuda',
-            'Compromiso Mensual Inferido', 'Margen Disponible Cuota', 'Alertas Técnicas', 'Fundamento Técnico', 'Límite de Cuota Sugerido', 'Estado Archivos'
-        ]]
-        sheets_service.spreadsheets().values().append(
-            spreadsheetId=spreadsheet_id,
-            range='Sheet1!A1',
-            valueInputOption='RAW',
-            body={'values': header_values}
-        ).execute()
-        return spreadsheet_id
+        if files:
+            return files[0]['id']
+        else:
+            spreadsheet_body = {
+                'properties': {'title': nombre_planilla}
+            }
+            spreadsheet = sheets_service.spreadsheets().create(body=spreadsheet_body, fields='spreadsheetId').execute()
+            spreadsheet_id = spreadsheet.get('spreadsheetId')
+            
+            header_values = [[
+                'Fecha y Hora', 'Cliente', 'Tipo Operación', 'Modelo IA y Tiempo', 'Resultado Dictamen',
+                'Ingreso Neto Comprobado', 'Situación Laboral', 'Antigüedad Laboral', 'Cuota Máxima (30% Neto)', 'Monto Máximo Disponible',
+                'BCRA', 'Score Equifax', 'Reporte Credixsa', 'Antecedentes Negativos', 'Evolución de Deuda',
+                'Compromiso Mensual Inferido', 'Margen Disponible Cuota', 'Alertas Técnicas', 'Fundamento Técnico', 'Límite de Cuota Sugerido', 'Estado Archivos'
+            ]]
+            sheets_service.spreadsheets().values().append(
+                spreadsheetId=spreadsheet_id,
+                range='Sheet1!A1',
+                valueInputOption='RAW',
+                body={'values': header_values}
+            ).execute()
+            return spreadsheet_id
+    except Exception as e:
+        st.error(f"❌ No se pudo crear o acceder a la planilla de auditoría en Google Sheets: {e}")
+        return None
 
 def extraer_campo_texto(texto, patron):
     match = re.search(patron, texto, re.IGNORECASE)
@@ -78,7 +86,7 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
     try:
         spreadsheet_id = obtener_o_crear_planilla_auditoria()
         if not spreadsheet_id:
-            return
+            return False
             
         resultado = "REVISAR"
         if "DICTAMEN: APROBADO" in dictamen_texto.upper() or "APROBADO" in dictamen_texto.upper():
@@ -121,18 +129,21 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
             valueInputOption='USER_ENTERED',
             body=row_body
         ).execute()
+        return True
     except Exception as e:
-        print(f"Error al registrar en Google Sheets: {e}")
+        st.error(f"❌ Error al registrar en Google Sheets: {e}")
+        return False
 
 def analizar_credito_con_fallback(files_dict, tipo_operacion, nombre_cliente):
     modelos = ['gemini-2.5-flash', 'gemini-1.5-flash']
     inicio = time.time()
+    ultimo_error = ""
     
     for modelo in modelos:
         max_intentos = 2
         for intento in range(max_intentos):
+            uploaded_files = []
             try:
-                uploaded_files = []
                 for tipo, path in files_dict.items():
                     if path and os.path.exists(path):
                         g_file = client.files.upload(file=path)
@@ -180,20 +191,23 @@ def analizar_credito_con_fallback(files_dict, tipo_operacion, nombre_cliente):
                 Límite de Cuota Sugerido: Hasta $ [Monto sin decimales] mensuales.
                 """
                 
-                response = client.models.generate_content(model=modelo, contents=uploaded_files + [prompt])
+                response = client.models.generate_content(
+                    model=modelo,
+                    contents=uploaded_files + [prompt]
+                )
                 duracion = round(time.time() - inicio, 1)
                 return response.text, modelo, duracion
+            
             except Exception as e:
+                ultimo_error = str(e)
                 if "503" in str(e) and intento < max_intentos - 1:
                     time.sleep(3)
                     continue
-                elif modelo == modelos[-1] and intento == max_intentos - 1:
-                    duracion = round(time.time() - inicio, 1)
-                    return f"Error crítico al procesar con la red de modelos: {e}", modelo, duracion
                 else:
                     break
+                    
     duracion = round(time.time() - inicio, 1)
-    return "Error: Servicio no disponible.", "Desconocido", duracion
+    return f"Error crítico al procesar con la red de modelos Gemini: {ultimo_error}", "Error", duracion
 
 # --- BARRA LATERAL ---
 with st.sidebar:
@@ -270,7 +284,7 @@ if submitted:
             )
             
             st.write("📊 Registrando campos estructurados en Google Sheets ('Auditoria_Dictamenes_Silvercred')...")
-            registrar_auditoria_sheet(
+            registrado = registrar_auditoria_sheet(
                 st.session_state.nombre_cliente,
                 st.session_state.tipo_operacion,
                 st.session_state.modelo_usado,
@@ -279,18 +293,26 @@ if submitted:
                 "Procesado localmente para análisis de riesgo"
             )
             
+            if registrado:
+                st.write("✅ Planilla de Google Sheets actualizada correctamente.")
+            else:
+                st.write("⚠️ No se pudo volcar a Google Sheets (verifique permisos o secretos de GCP).")
+            
             for p in paths_dict.values():
                 if os.path.exists(p):
-                    os.unlink(p)
-            status.update(label="✅ ¡Proceso, análisis y auditoría estructurada completados con éxito!", state="complete", expanded=False)
+                    try:
+                        os.unlink(p)
+                    except:
+                        pass
+            status.update(label="✅ ¡Proceso finalizado!", state="complete", expanded=False)
 
 # Mostrar resultados si ya fueron generados
 if st.session_state.analisis_resultado:
-    st.success("¡Operación finalizada y registrada detalladamente en Google Sheets!")
+    st.success("¡Operación finalizada!")
     
     fecha_hora_actual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     
-    st.info(f"📊 **Información de Rendimiento e IA:** Modelo utilizado: **{st.session_state.modelo_usado}** | Tiempo: **{st.session_state.tiempo_total} segundos** | Procesado el: **{fecha_hora_actual}** | 📝 *Campos volcados a planilla Google Sheets*")
+    st.info(f"📊 **Información de Rendimiento e IA:** Modelo utilizado: **{st.session_state.modelo_usado}** | Tiempo: **{st.session_state.tiempo_total} segundos** | Procesado el: **{fecha_hora_actual}**")
     
     st.markdown("---")
     col_tit, col_btn = st.columns([3, 1])
