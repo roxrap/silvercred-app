@@ -145,7 +145,7 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
         return False
 
 def analizar_credito_con_fallback(files_dict, tipo_operacion, nombre_cliente):
-    modelos = ['gemini-3.8-flash', 'gemini-2.0-flash']
+    modelos = ['gemini-3.8-flash']
     inicio = time.time()
     ultimo_error = ""
     
