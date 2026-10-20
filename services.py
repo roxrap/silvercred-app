@@ -1,8 +1,10 @@
 import streamlit as st
 import re
+import os
 from datetime import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
 ID_CARPETA_CLIENTES = "1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7"
 
@@ -25,12 +27,52 @@ def init_google_services():
 
 drive_service, sheets_service = init_google_services()
 
-def obtener_o_crear_planilla_auditoria():
+def obtener_o_crear_carpeta_cliente(nombre_cliente):
+    if not drive_service:
+        return None
+    try:
+        nombre_carpeta = nombre_cliente.strip().upper()
+        query = f"name = '{nombre_carpeta}' and '{ID_CARPETA_CLIENTES}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        results = drive_service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
+        files = results.get('files', [])
+        
+        if files:
+            return files[0]['id']
+        else:
+            folder_metadata = {
+                'name': nombre_carpeta,
+                'mimeType': 'application/vnd.google-apps.folder',
+                'parents': [ID_CARPETA_CLIENTES]
+            }
+            folder = drive_service.files().create(body=folder_metadata, fields='id').execute()
+            return folder.get('id')
+    except Exception as e:
+        return None
+
+def subir_archivo_a_drive(file_path, original_name, id_carpeta_destino):
+    if not drive_service or not os.path.exists(file_path):
+        return None
+    try:
+        file_metadata = {
+            'name': original_name,
+            'parents': [id_carpeta_destino]
+        }
+        media = MediaFileUpload(file_path, resumable=True)
+        file = drive_service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id'
+        ).execute()
+        return file.get('id')
+    except Exception as e:
+        return None
+
+def obtener_o_crear_planilla_auditoria(id_carpeta_destino):
     if not drive_service or not sheets_service:
         return None
     try:
         nombre_planilla = "Auditoria_Dictamenes_Silvercred"
-        query = f"name = '{nombre_planilla}' and '{ID_CARPETA_CLIENTES}' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false"
+        query = f"name = '{nombre_planilla}' and '{id_carpeta_destino}' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false"
         results = drive_service.files().list(q=query, spaces='drive', fields='files(id, name)').execute()
         files = results.get('files', [])
         
@@ -46,7 +88,7 @@ def obtener_o_crear_planilla_auditoria():
             try:
                 drive_service.files().update(
                     fileId=spreadsheet_id,
-                    addParents=ID_CARPETA_CLIENTES,
+                    addParents=id_carpeta_destino,
                     removeParents='root',
                     fields='id, parents'
                 ).execute()
@@ -75,9 +117,9 @@ def extraer_campo_texto(texto, patron):
         return match.group(1).strip()
     return "N/D"
 
-def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, estado_archivos):
+def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, estado_archivos, id_carpeta_cliente):
     try:
-        spreadsheet_id = obtener_o_crear_planilla_auditoria()
+        spreadsheet_id = obtener_o_crear_planilla_auditoria(id_carpeta_cliente)
         if not spreadsheet_id:
             return False
             
