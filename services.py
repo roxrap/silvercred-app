@@ -23,12 +23,14 @@ def init_google_services():
         drive_service = build('drive', 'v3', credentials=gcp_creds)
         return drive_service, sheets_service
     except Exception as e:
+        st.error(f"Error inicializando servicios de Google: {e}")
         return None, None
 
 drive_service, sheets_service = init_google_services()
 
 def obtener_o_crear_carpeta_cliente(nombre_cliente):
     if not drive_service:
+        st.error("El servicio de Google Drive no está inicializado.")
         return None
     try:
         nombre_carpeta = nombre_cliente.strip().upper()
@@ -47,10 +49,12 @@ def obtener_o_crear_carpeta_cliente(nombre_cliente):
             folder = drive_service.files().create(body=folder_metadata, fields='id').execute()
             return folder.get('id')
     except Exception as e:
+        st.error(f"Error creando carpeta de cliente en Drive: {e}")
         return None
 
 def subir_archivo_a_drive(file_path, original_name, id_carpeta_destino):
     if not drive_service or not os.path.exists(file_path):
+        st.warning(f"No se encontró el archivo temporal para subir: {original_name}")
         return None
     try:
         file_metadata = {
@@ -65,6 +69,7 @@ def subir_archivo_a_drive(file_path, original_name, id_carpeta_destino):
         ).execute()
         return file.get('id')
     except Exception as e:
+        st.error(f"No se pudo subir el archivo {original_name} a Drive: {e}")
         return None
 
 def obtener_o_crear_planilla_auditoria(id_carpeta_destino):
