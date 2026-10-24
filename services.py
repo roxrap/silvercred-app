@@ -5,7 +5,8 @@ from datetime import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-
+from googleapiclient.http import MediaIoBaseUpload
+import io
 ID_CARPETA_CLIENTES = "1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7"
 
 @st.cache_resource
@@ -52,16 +53,21 @@ def obtener_o_crear_carpeta_cliente(nombre_cliente):
         st.error(f"Error creando carpeta de cliente en Drive: {e}")
         return None
 
-def subir_archivo_a_drive(file_path, original_name, id_carpeta_destino):
-    if not drive_service or not os.path.exists(file_path):
-        st.warning(f"No se encontró el archivo temporal para subir: {original_name}")
+
+
+
+def subir_archivo_a_drive_desde_bytes(file_bytes, original_name, id_carpeta_destino):
+    if not drive_service or not file_bytes:
         return None
     try:
         file_metadata = {
             'name': original_name,
             'parents': [id_carpeta_destino]
         }
-        media = MediaFileUpload(file_path, resumable=True)
+        # Creamos un flujo en memoria con los bytes del archivo subido
+        fh = io.BytesIO(file_bytes)
+        media = MediaIoBaseUpload(fh, resumable=True)
+        
         file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
