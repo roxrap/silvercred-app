@@ -1,9 +1,13 @@
 import streamlit as st
 import os
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from services import obtener_o_crear_carpeta_cliente, subir_archivo_a_drive, registrar_auditoria_sheet
 from ai_analyzer import analizar_credito_con_fallback
+
+# Hora ajustada para Argentina (UTC-3)
+f_argentina = datetime.utcnow() - timedelta(hours=3)
+fecha_hora_actual = f_argentina.strftime("%d/%m/%Y %H:%M:%S")
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
@@ -73,21 +77,29 @@ if submitted:
             st.write("📥 Preparando archivos temporales...")
             
             if archivo_recibo:
-                suffix = os.path.splitext(archivo_recibo.name)[1]
+                bytes_recibo = archivo_recibo.getvalue()
+                nombre_recibo = archivo_recibo.name
+                original_names['recibo'] = nombre_recibo
+                suffix = os.path.splitext(nombre_recibo)[1]
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                    tmp.write(archivo_recibo.getvalue())
+                    tmp.write(bytes_recibo)
                     paths_dict['recibo'] = tmp.name
-                    original_names['recibo'] = archivo_recibo.name
+        
             if archivo_veraz:
+                bytes_veraz = archivo_veraz.getvalue()
+                nombre_veraz = archivo_veraz.name
+                original_names['veraz'] = nombre_veraz
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    tmp.write(archivo_veraz.getvalue())
+                    tmp.write(bytes_veraz)
                     paths_dict['veraz'] = tmp.name
-                    original_names['veraz'] = archivo_veraz.name
+
             if archivo_credixsa:
+                bytes_credixsa = archivo_credixsa.getvalue()
+                nombre_credixsa = archivo_credixsa.name
+                original_names['credixsa'] = nombre_credixsa
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    tmp.write(archivo_credixsa.getvalue())
+                    tmp.write(bytes_credixsa)
                     paths_dict['credixsa'] = tmp.name
-                    original_names['credixsa'] = archivo_credixsa.name
 
             st.write("🧠 Conectando con Gemini (3.8-flash) para procesamiento analítico...")
             st.session_state.analisis_resultado, st.session_state.modelo_usado, st.session_state.tiempo_total = analizar_credito_con_fallback(
@@ -124,8 +136,6 @@ if submitted:
 # Mostrar resultados si ya fueron generados
 if st.session_state.analisis_resultado:
     st.success("¡Operación finalizada y registrada en Google Drive!")
-    
-    fecha_hora_actual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     
     st.info(f"📊 **Información de Rendimiento e IA:** Modelo utilizado: **{st.session_state.modelo_usado}** | Tiempo: **{st.session_state.tiempo_total} segundos** | Procesado el: **{fecha_hora_actual}**")
     
