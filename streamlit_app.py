@@ -2,7 +2,7 @@ import streamlit as st
 import os
 import tempfile
 from datetime import datetime, timedelta
-from services import obtener_o_crear_carpeta_cliente, subir_archivo_a_drive, registrar_auditoria_sheet
+from services import obtener_o_crear_carpeta_cliente, subir_bytes_a_drive, registrar_auditoria_sheet
 from ai_analyzer import analizar_credito_con_fallback
 
 # Hora ajustada para Argentina (UTC-3)
@@ -73,32 +73,36 @@ if submitted:
         
         with st.status("🚀 Ejecutando protocolo de análisis crediticio Silvercred...", expanded=True) as status:
             paths_dict = {}
-            original_names = {}
-            st.write("📥 Preparando archivos temporales...")
+            bytes_dict = {}
+            names_dict = {}
+            st.write("📥 Leyendo archivos y preparando análisis...")
             
             if archivo_recibo:
-                bytes_recibo = archivo_recibo.getvalue()
-                nombre_recibo = archivo_recibo.name
-                original_names['recibo'] = nombre_recibo
-                suffix = os.path.splitext(nombre_recibo)[1]
+                b_recibo = archivo_recibo.getvalue()
+                n_recibo = archivo_recibo.name
+                bytes_dict['recibo'] = b_recibo
+                names_dict['recibo'] = n_recibo
+                suffix = os.path.splitext(n_recibo)[1]
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                    tmp.write(bytes_recibo)
+                    tmp.write(b_recibo)
                     paths_dict['recibo'] = tmp.name
         
             if archivo_veraz:
-                bytes_veraz = archivo_veraz.getvalue()
-                nombre_veraz = archivo_veraz.name
-                original_names['veraz'] = nombre_veraz
+                b_veraz = archivo_veraz.getvalue()
+                n_veraz = archivo_veraz.name
+                bytes_dict['veraz'] = b_veraz
+                names_dict['veraz'] = n_veraz
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    tmp.write(bytes_veraz)
+                    tmp.write(b_veraz)
                     paths_dict['veraz'] = tmp.name
 
             if archivo_credixsa:
-                bytes_credixsa = archivo_credixsa.getvalue()
-                nombre_credixsa = archivo_credixsa.name
-                original_names['credixsa'] = nombre_credixsa
+                b_credixsa = archivo_credixsa.getvalue()
+                n_credixsa = archivo_credixsa.name
+                bytes_dict['credixsa'] = b_credixsa
+                names_dict['credixsa'] = n_credixsa
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    tmp.write(bytes_credixsa)
+                    tmp.write(b_credixsa)
                     paths_dict['credixsa'] = tmp.name
 
             st.write("🧠 Conectando con Gemini (3.8-flash) para procesamiento analítico...")
@@ -110,9 +114,9 @@ if submitted:
             id_carpeta_cliente = obtener_o_crear_carpeta_cliente(st.session_state.nombre_cliente)
             
             if id_carpeta_cliente:
-                st.write("📤 Guardando archivos originales en la carpeta del cliente...")
-                for key, path in paths_dict.items():
-                    subir_archivo_a_drive(path, original_names[key], id_carpeta_cliente)
+                st.write("📤 Guardando archivos originales en la carpeta del cliente (vía memoria)...")
+                for key, b_data in bytes_dict.items():
+                    subir_bytes_a_drive(b_data, names_dict[key], id_carpeta_cliente)
                 
                 st.write("📊 Registrando auditoría en Google Sheets dentro de la carpeta...")
                 registrar_auditoria_sheet(
