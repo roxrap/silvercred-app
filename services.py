@@ -1,10 +1,11 @@
 import streamlit as st
 import re
 import os
+import io
 from datetime import datetime
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from googleapiclient.http import MediaIoBaseUpload
 
 ID_CARPETA_CLIENTES = "1JJpum6qCPLz8-EbzahCpBZ2TaNbedxZ7"
 
@@ -52,16 +53,17 @@ def obtener_o_crear_carpeta_cliente(nombre_cliente):
         st.error(f"Error creando carpeta de cliente en Drive: {e}")
         return None
 
-def subir_archivo_a_drive(file_path, original_name, id_carpeta_destino):
-    if not drive_service or not os.path.exists(file_path):
-        st.warning(f"No se encontró el archivo temporal para subir: {original_name}")
+def subir_bytes_a_drive(file_bytes, original_name, id_carpeta_destino):
+    if not drive_service or not file_bytes:
         return None
     try:
         file_metadata = {
             'name': original_name,
             'parents': [id_carpeta_destino]
         }
-        media = MediaFileUpload(file_path, resumable=True)
+        fh = io.BytesIO(file_bytes)
+        media = MediaIoBaseUpload(fh, resumable=True)
+        
         file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
@@ -74,6 +76,7 @@ def subir_archivo_a_drive(file_path, original_name, id_carpeta_destino):
 
 def obtener_o_crear_planilla_auditoria(id_carpeta_destino):
     if not drive_service or not sheets_service:
+        st.error("Servicios de Google no disponibles para Auditoría.")
         return None
     try:
         nombre_planilla = "Auditoria_Dictamenes_Silvercred"
@@ -106,14 +109,16 @@ def obtener_o_crear_planilla_auditoria(id_carpeta_destino):
                 'BCRA', 'Score Equifax', 'Reporte Credixsa', 'Antecedentes Negativos', 'Evolución de Deuda',
                 'Compromiso Mensual Inferido', 'Margen Disponible Cuota', 'Alertas Técnicas', 'Fundamento Técnico', 'Límite de Cuota Sugerido', 'Estado Archivos'
             ]]
+            # Usamos 'A1' genérico para evitar errores con el nombre de la pestaña predeterminada
             sheets_service.spreadsheets().values().append(
                 spreadsheetId=spreadsheet_id,
-                range='Sheet1!A1',
+                range='A1',
                 valueInputOption='RAW',
                 body={'values': header_values}
             ).execute()
             return spreadsheet_id
     except Exception as e:
+        st.error(f"Error al crear o buscar la planilla de auditoría: {e}")
         return None
 
 def extraer_campo_texto(texto, patron):
@@ -165,10 +170,11 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
         }
         sheets_service.spreadsheets().values().append(
             spreadsheetId=spreadsheet_id,
-            range='Sheet1!A:U',
+            range='A:U',
             valueInputOption='USER_ENTERED',
             body=row_body
         ).execute()
         return True
     except Exception as e:
+        st.error(f"Error al registrar la auditoría en Google Sheets: {e}")
         return False
