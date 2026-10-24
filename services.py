@@ -40,6 +40,7 @@ def obtener_o_crear_carpeta_cliente(nombre_cliente):
         files = results.get('files', [])
         
         if files:
+            st.info(f"📁 Carpeta existente encontrada para: {nombre_carpeta}")
             return files[0]['id']
         else:
             folder_metadata = {
@@ -48,6 +49,7 @@ def obtener_o_crear_carpeta_cliente(nombre_cliente):
                 'parents': [ID_CARPETA_CLIENTES]
             }
             folder = drive_service.files().create(body=folder_metadata, fields='id').execute()
+            st.success(f"📁 Carpeta creada con éxito para: {nombre_carpeta}")
             return folder.get('id')
     except Exception as e:
         st.error(f"Error creando carpeta de cliente en Drive: {e}")
@@ -55,6 +57,7 @@ def obtener_o_crear_carpeta_cliente(nombre_cliente):
 
 def subir_bytes_a_drive(file_bytes, original_name, id_carpeta_destino):
     if not drive_service or not file_bytes:
+        st.warning(f"⚠️ No hay contenido para el archivo: {original_name}")
         return None
     try:
         file_metadata = {
@@ -62,21 +65,23 @@ def subir_bytes_a_drive(file_bytes, original_name, id_carpeta_destino):
             'parents': [id_carpeta_destino]
         }
         fh = io.BytesIO(file_bytes)
-        media = MediaIoBaseUpload(fh, resumable=True)
+        media = MediaIoBaseUpload(fh, mimetype='application/octet-stream', resumable=False)
         
         file = drive_service.files().create(
             body=file_metadata,
             media_body=media,
             fields='id'
         ).execute()
-        return file.get('id')
+        
+        file_id = file.get('id')
+        st.success(f"✅ Archivo guardado en Drive: {original_name} (ID: {file_id})")
+        return file_id
     except Exception as e:
-        st.error(f"No se pudo subir el archivo {original_name} a Drive: {e}")
+        st.error(f"❌ Error al subir {original_name} a Drive: {e}")
         return None
 
 def obtener_o_crear_planilla_auditoria(id_carpeta_destino):
     if not drive_service or not sheets_service:
-        st.error("Servicios de Google no disponibles para Auditoría.")
         return None
     try:
         nombre_planilla = "Auditoria_Dictamenes_Silvercred"
@@ -109,7 +114,6 @@ def obtener_o_crear_planilla_auditoria(id_carpeta_destino):
                 'BCRA', 'Score Equifax', 'Reporte Credixsa', 'Antecedentes Negativos', 'Evolución de Deuda',
                 'Compromiso Mensual Inferido', 'Margen Disponible Cuota', 'Alertas Técnicas', 'Fundamento Técnico', 'Límite de Cuota Sugerido', 'Estado Archivos'
             ]]
-            # Usamos 'A1' genérico para evitar errores con el nombre de la pestaña predeterminada
             sheets_service.spreadsheets().values().append(
                 spreadsheetId=spreadsheet_id,
                 range='A1',
@@ -118,7 +122,7 @@ def obtener_o_crear_planilla_auditoria(id_carpeta_destino):
             ).execute()
             return spreadsheet_id
     except Exception as e:
-        st.error(f"Error al crear o buscar la planilla de auditoría: {e}")
+        st.error(f"Error al crear planilla de auditoría: {e}")
         return None
 
 def extraer_campo_texto(texto, patron):
@@ -152,7 +156,7 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
         bcra = extraer_campo_texto(dictamen_texto, r"BCRA:\s*(.*)")
         equifax = extraer_campo_texto(dictamen_texto, r"Score Equifax:\s*(.*)")
         credixsa = extraer_campo_texto(dictamen_texto, r"Reporte Credixsa:\s*(.*)")
-        antecedentes = extraer_campo_texto(dictamen_texto, r"Antecedentes Negativos:\s*(.*)")
+        antecedentes = extraer_campotexto = extraer_campo_texto(dictamen_texto, r"Antecedentes Negativos:\s*(.*)")
         evolucion = extraer_campo_texto(dictamen_texto, r"Evolución de Deuda:\s*(.*)")
         compromiso = extraer_campo_texto(dictamen_texto, r"Compromiso Mensual Inferido:\s*(.*)")
         margen = extraer_campo_texto(dictamen_texto, r"Margen Disponible Cuota Mensual:\s*(.*)")
@@ -174,7 +178,8 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
             valueInputOption='USER_ENTERED',
             body=row_body
         ).execute()
+        st.success("📊 Auditoría registrada con éxito en Google Sheets.")
         return True
     except Exception as e:
-        st.error(f"Error al registrar la auditoría en Google Sheets: {e}")
+        st.error(f"❌ Error al registrar auditoría en Sheets: {e}")
         return False
