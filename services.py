@@ -40,7 +40,6 @@ def obtener_o_crear_carpeta_cliente(nombre_cliente):
         files = results.get('files', [])
         
         if files:
-            st.info(f"📁 Carpeta existente encontrada para: {nombre_carpeta}")
             return files[0]['id']
         else:
             folder_metadata = {
@@ -49,7 +48,6 @@ def obtener_o_crear_carpeta_cliente(nombre_cliente):
                 'parents': [ID_CARPETA_CLIENTES]
             }
             folder = drive_service.files().create(body=folder_metadata, fields='id').execute()
-            st.success(f"📁 Carpeta creada con éxito para: {nombre_carpeta}")
             return folder.get('id')
     except Exception as e:
         st.error(f"Error creando carpeta de cliente en Drive: {e}")
@@ -74,7 +72,7 @@ def subir_bytes_a_drive(file_bytes, original_name, id_carpeta_destino):
         ).execute()
         
         file_id = file.get('id')
-        st.success(f"✅ Archivo guardado en Drive: {original_name} (ID: {file_id})")
+        st.success(f"✅ Archivo guardado en Drive: {original_name}")
         return file_id
     except Exception as e:
         st.error(f"❌ Error al subir {original_name} a Drive: {e}")
@@ -156,7 +154,7 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
         bcra = extraer_campo_texto(dictamen_texto, r"BCRA:\s*(.*)")
         equifax = extraer_campo_texto(dictamen_texto, r"Score Equifax:\s*(.*)")
         credixsa = extraer_campo_texto(dictamen_texto, r"Reporte Credixsa:\s*(.*)")
-        antecedentes = extraer_campotexto = extraer_campo_texto(dictamen_texto, r"Antecedentes Negativos:\s*(.*)")
+        antecedentes = extraer_campo_texto(dictamen_texto, r"Antecedentes Negativos:\s*(.*)")
         evolucion = extraer_campo_texto(dictamen_texto, r"Evolución de Deuda:\s*(.*)")
         compromiso = extraer_campo_texto(dictamen_texto, r"Compromiso Mensual Inferido:\s*(.*)")
         margen = extraer_campo_texto(dictamen_texto, r"Margen Disponible Cuota Mensual:\s*(.*)")
@@ -178,8 +176,7 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
             valueInputOption='USER_ENTERED',
             body=row_body
         ).execute()
-        st.success("📊 Auditoría registrada con éxito en Google Sheets.")
         return True
     except Exception as e:
-        st.error(f"❌ Error al registrar auditoría en Sheets: {e}")
+        st.error(f"Error al registrar auditoría en Sheets: {e}")
         return False
