@@ -12,7 +12,7 @@ fecha_hora_actual = f_argentina.strftime("%d/%m/%Y %H:%M:%S")
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
     page_title="Silvercred - Sistema de Evaluación Crediticia",
-    page_icon="💳",
+    page_icon="logo.png" if os.path.exists("logo.png") else "💳",
     layout="wide"
 )
 
@@ -20,6 +20,9 @@ GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 
 # --- BARRA LATERAL ---
 with st.sidebar:
+    if os.path.exists("logo.png"):
+        st.image("logo.png", width='stretch')
+    st.markdown("---")
     st.markdown("### 🏢 Sucursales operativas")
     st.markdown("- Santa Fe\n- San Javier")
     st.markdown("---")
