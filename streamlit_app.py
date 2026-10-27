@@ -2,7 +2,7 @@ import streamlit as st
 import os
 import tempfile
 from datetime import datetime, timedelta
-from services import obtener_o_crear_carpeta_cliente, subir_bytes_a_drive, registrar_auditoria_sheet
+from services import registrar_auditoria_sheet
 from ai_analyzer import analizar_credito_con_fallback
 
 # Hora ajustada para Argentina (UTC-3)
@@ -12,7 +12,7 @@ fecha_hora_actual = f_argentina.strftime("%d/%m/%Y %H:%M:%S")
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
     page_title="Silvercred - Sistema de Evaluación Crediticia",
-    page_icon="logo.png" if os.path.exists("logo.png") else "💳",
+    page_icon="💳",
     layout="wide"
 )
 
@@ -20,13 +20,10 @@ GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 
 # --- BARRA LATERAL ---
 with st.sidebar:
-    if os.path.exists("logo.png"):
-        st.image("logo.png", width='stretch')
-    st.markdown("---")
     st.markdown("### 🏢 Sucursales operativas")
     st.markdown("- Santa Fe\n- San Javier")
     st.markdown("---")
-    st.info("Módulo Activo: Análisis Crediticio con Auditoría Sheets y Drive")
+    st.info("Módulo Activo: Análisis Crediticio con Auditoría Sheets")
 
 # --- INICIALIZAR ESTADO DE SESIÓN ---
 if "analisis_resultado" not in st.session_state:
@@ -42,7 +39,7 @@ if "tipo_operacion" not in st.session_state:
 
 # --- INTERFAZ PRINCIPAL ---
 st.title("💳 Silvercred - Sistema de Evaluación Crediticia")
-st.markdown("Ingresa los datos del cliente, sube la documentación (PDF o imágenes para el recibo) y el sistema procesará el dictamen de riesgo y registrará todo en su carpeta de Google Drive.")
+st.markdown("Ingresa los datos del cliente, sube la documentación y el sistema procesará el dictamen de riesgo registrando automáticamente la auditoría en Google Sheets.")
 
 with st.form("form_cliente"):
     col_1, col_2 = st.columns(2)
@@ -71,88 +68,55 @@ if submitted:
         st.session_state.nombre_cliente = nombre_cliente_input.strip().upper()
         st.session_state.tipo_operacion = tipo_op_input
         
-        # Contenedor para mostrar mensajes de depuración en pantalla si algo falla
-        debug_container = st.empty()
-        
         with st.status("🚀 Ejecutando protocolo de análisis crediticio Silvercred...", expanded=True) as status:
-            try:
-                paths_dict = {}
-                st.write("📥 [Paso 1] Leyendo archivos adjuntos en memoria...")
-                
-                b_recibo, n_recibo = None, None
-                if archivo_recibo:
-                    b_recibo = archivo_recibo.getvalue()
-                    n_recibo = archivo_recibo.name
-                    suffix = os.path.splitext(n_recibo)[1]
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                        tmp.write(b_recibo)
-                        paths_dict['recibo'] = tmp.name
+            paths_dict = {}
+            st.write("📥 Preparando archivos temporales...")
+            
+            if archivo_recibo:
+                suffix = os.path.splitext(archivo_recibo.name)[1]
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                    tmp.write(archivo_recibo.getvalue())
+                    paths_dict['recibo'] = tmp.name
 
-                b_veraz, n_veraz = None, None
-                if archivo_veraz:
-                    b_veraz = archivo_veraz.getvalue()
-                    n_veraz = archivo_veraz.name
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                        tmp.write(b_veraz)
-                        paths_dict['veraz'] = tmp.name
+            if archivo_veraz:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    tmp.write(archivo_veraz.getvalue())
+                    paths_dict['veraz'] = tmp.name
 
-                b_credixsa, n_credixsa = None, None
-                if archivo_credixsa:
-                    b_credixsa = archivo_credixsa.getvalue()
-                    n_credixsa = archivo_credixsa.name
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                        tmp.write(b_credixsa)
-                        paths_dict['credixsa'] = tmp.name
+            if archivo_credixsa:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    tmp.write(archivo_credixsa.getvalue())
+                    paths_dict['credixsa'] = tmp.name
 
-                st.write("🧠 [Paso 2] Conectando con Gemini 3.8-flash (analizando documentos)...")
-                res, mod, tiempo = analizar_credito_con_fallback(
-                    GEMINI_API_KEY, paths_dict, st.session_state.tipo_operacion, st.session_state.nombre_cliente
-                )
-                st.session_state.analisis_resultado = res
-                st.session_state.modelo_usado = mod
-                st.session_state.tiempo_total = tiempo
+            st.write("🧠 Conectando con Gemini 3.8-flash para procesamiento analítico...")
+            res, mod, tiempo = analizar_credito_con_fallback(
+                GEMINI_API_KEY, paths_dict, st.session_state.tipo_operacion, st.session_state.nombre_cliente
+            )
+            st.session_state.analisis_resultado = res
+            st.session_state.modelo_usado = mod
+            st.session_state.tiempo_total = tiempo
 
-                st.write("📁 [Paso 3] Creando o buscando la carpeta del cliente en Google Drive...")
-                id_carpeta_cliente = obtener_o_crear_carpeta_cliente(st.session_state.nombre_cliente)
-                
-                if id_carpeta_cliente:
-                    st.write("📤 [Paso 4] Subiendo archivos a la carpeta de Google Drive...")
-                    if b_recibo and n_recibo:
-                        subir_bytes_a_drive(b_recibo, n_recibo, id_carpeta_cliente)
-                    if b_veraz and n_veraz:
-                        subir_bytes_a_drive(b_veraz, n_veraz, id_carpeta_cliente)
-                    if b_credixsa and n_credixsa:
-                        subir_bytes_a_drive(b_credixsa, n_credixsa, id_carpeta_cliente)
-                    
-                    st.write("📊 [Paso 5] Registrando auditoría en Google Sheets...")
-                    registrar_auditoria_sheet(
-                        st.session_state.nombre_cliente,
-                        st.session_state.tipo_operacion,
-                        st.session_state.modelo_usado,
-                        st.session_state.tiempo_total,
-                        st.session_state.analisis_resultado,
-                        "Procesado y guardado correctamente",
-                        id_carpeta_cliente
-                    )
-                else:
-                    st.error("⚠️ No se pudo obtener ni crear la carpeta del cliente en Google Drive.")
+            st.write("📊 Registrando datos estructurados en Google Sheets...")
+            registrar_auditoria_sheet(
+                st.session_state.nombre_cliente,
+                st.session_state.tipo_operacion,
+                st.session_state.modelo_usado,
+                st.session_state.tiempo_total,
+                st.session_state.analisis_resultado
+            )
 
-                for p in paths_dict.values():
-                    if os.path.exists(p):
-                        try:
-                            os.unlink(p)
-                        except:
-                            pass
-                            
-                status.update(label="✅ ¡Proceso completado con éxito!", state="complete", expanded=False)
-
-            except Exception as err:
-                status.update(label="❌ Ocurrió un error crítico en el proceso.", state="error", expanded=True)
-                st.error(f"Detalle técnico del error: {str(err)}")
+            for p in paths_dict.values():
+                if os.path.exists(p):
+                    try:
+                        os.unlink(p)
+                    except:
+                        pass
+                        
+            status.update(label="✅ ¡Análisis completado y registrado en Sheets con éxito!", state="complete", expanded=False)
 
 # Mostrar resultados si ya fueron generados
 if st.session_state.analisis_resultado:
-    st.success("¡Operación finalizada y registrada con éxito!")
+    st.success("¡Operación finalizada y registrada correctamente!")
     
     st.info(f"📊 **Información de Rendimiento e IA:** Modelo utilizado: **{st.session_state.modelo_usado}** | Tiempo: **{st.session_state.tiempo_total} segundos** | Procesado el: **{fecha_hora_actual}**")
     
