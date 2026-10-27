@@ -1,17 +1,5 @@
-import time
-from google import genai
-from google.genai import types
-
-def analizar_credito_con_fallback(api_key, paths_dict, tipo_operacion, nombre_cliente):
-    inicio = time.time()
-    
-    if not api_key:
-        return "Error: Falta configurar la API Key de Gemini en los secrets.", "Ninguno", 0
-
-    client = genai.Client(api_key=api_key)
-    
-    # Prompt directrices estrictas y simplificadas para las sucursales
-    prompt_sistema = f"""
+def obtener_prompt_credito(tipo_operacion, nombre_cliente):
+    return f"""
     Actúa como un analista de riesgo crediticio senior de la financiera Silvercred (sucursales Santa Fe y San Javier). 
     Tu objetivo es emitir un dictamen de riesgo **estrictamente conciso, al pie, sin palabras complicadas ni explicaciones de cálculos**, para que el operador humano lo interprete en segundos sin dudas.
 
@@ -44,33 +32,3 @@ def analizar_credito_con_fallback(api_key, paths_dict, tipo_operacion, nombre_cl
 
     Analiza la documentación adjunta (Recibo de sueldo, Veraz, Credixsa) para el cliente {nombre_cliente}.
     """
-
-    contents = [prompt_sistema]
-    
-    # Adjuntar archivos físicos a la llamada de Gemini si existen
-    for key, path in paths_dict.items():
-        if os.path.exists(path):
-            try:
-                uploaded_file = client.files.upload(file=path)
-                contents.append(uploaded_file)
-            except Exception as e:
-                print(f"Error subiendo archivo temporal {key}: {e}")
-
-    modelos_a_probar = ["gemini-2.5-flash", "gemini-3.8-flash", "gemini-2.5-pro"]
-    
-    for modelo in modelos_a_probar:
-        try:
-            inicio_modelo = time.time()
-            response = client.models.generate_content(
-                model=modelo,
-                contents=contents
-            )
-            tiempo_total = round(time.time() - inicio_modelo, 1)
-            if response and response.text:
-                return response.text, modelo, tiempo_total
-        except Exception as e:
-            continue
-            
-    # Fallback definitivo si fallan los modelos
-    tiempo_total = round(time.time() - inicio, 1)
-    return "Error crítico: No se pudo procesar el análisis con ningún modelo de Gemini.", "Ninguno", tiempo_total
