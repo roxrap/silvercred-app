@@ -45,7 +45,10 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto):
         elif "DICTAMEN: CONDICIONADO" in dictamen_texto.upper() or "CONDICIONADO" in dictamen_texto.upper():
             resultado = "CONDICIONADO"
             
-        fecha_hora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        # Hora ajustada para Argentina (UTC-3)
+        f_argentina = datetime.now(datetime.UTC) - timedelta(hours=3) if hasattr(datetime, "UTC") else datetime.utcnow() - timedelta(hours=3)
+        fecha_hora = f_argentina.strftime("%d/%m/%Y %H:%M:%S")
+        
         modelo_y_tiempo = f"{modelo} ({tiempo}s)"
         
         ingreso_neto = extraer_campo_texto(dictamen_texto, r"Ingreso Neto Comprobado:\s*(.*)")
@@ -69,7 +72,6 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto):
             ]]
         }
         
-        # Escribe directamente una línea al final de la planilla existente
         sheets_service.spreadsheets().values().append(
             spreadsheetId=ID_PLANILLA_AUDITORIA,
             range='A:Q',
@@ -80,3 +82,5 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto):
     except Exception as e:
         st.error(f"Error escribiendo en Google Sheets: {e}")
         return False
+
+
