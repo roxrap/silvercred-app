@@ -11,7 +11,7 @@ def obtener_prompt_credito(tipo_operacion, nombre_cliente):
     
     2. SITUACIÓN LABORAL Y CAPITAL MÁXIMO:
        - Clasificar estrictamente la situación laboral en una de estas categorías: Empleado privado, Empleado provincial, Empleado municipal, Empleada doméstica, Jubilado provincial, Jubilado municipal o Jubilado nacional.
-       - CAPITAL MÁXIMO A OTORGAR: Se calcula tomando como base el sueldo neto, redondeando por debajo en bloques de 50.000. Es 1 sueldo neto para Empleado privado. Es 50% sueldo neto para Empleado municipal, Empleada doméstica, Jubilado provincial, Jubilado municipal o Jubilado nacional. Es 75% del sueldo neto para Jubilado provincial. No alucines montos desligados del ingreso.
+       - CAPITAL MÁXIMO A OTORGAR: Se calcula tomando como base el sueldo neto, redondeando por debajo en bloques de 50.000. Es 1 sueldo neto para Empleado privado. Es 50% sueldo neto para Empleado municipal, Empleada doméstica, Jubilado municipal o Jubilado nacional. Es 75% del sueldo neto para Empleado provincial o Jubilado provincial. No alucines montos desligados del ingreso.
     
     3. EVALUACIÓN DE INGRESOS Y CUOTA:
        - Informar el Ingreso Neto Comprobado y la Antigüedad Laboral.
