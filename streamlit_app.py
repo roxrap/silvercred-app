@@ -6,7 +6,7 @@ from services import obtener_o_crear_carpeta_cliente, subir_bytes_a_drive, regis
 from ai_analyzer import analizar_credito_con_fallback
 
 # Hora ajustada para Argentina (UTC-3)
-f_argentina = datetime.utcnow() - timedelta(hours=3)
+f_argentina = datetime.now(datetime.UTC) - timedelta(hours=3) if hasattr(datetime, "UTC") else datetime.utcnow() - timedelta(hours=3)
 fecha_hora_actual = f_argentina.strftime("%d/%m/%Y %H:%M:%S")
 
 # --- CONFIGURACIÓN DE PÁGINA ---
@@ -21,7 +21,7 @@ GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 # --- BARRA LATERAL ---
 with st.sidebar:
     if os.path.exists("logo.png"):
-        st.image("logo.png", use_container_width=True)
+        st.image("logo.png", width='stretch')
     st.markdown("---")
     st.markdown("### 🏢 Sucursales operativas")
     st.markdown("- Santa Fe\n- San Javier")
@@ -71,83 +71,88 @@ if submitted:
         st.session_state.nombre_cliente = nombre_cliente_input.strip().upper()
         st.session_state.tipo_operacion = tipo_op_input
         
+        # Contenedor para mostrar mensajes de depuración en pantalla si algo falla
+        debug_container = st.empty()
+        
         with st.status("🚀 Ejecutando protocolo de análisis crediticio Silvercred...", expanded=True) as status:
-            paths_dict = {}
-            st.write("📥 Leyendo archivos adjuntos...")
-            
-            # Procesar Recibo
-            b_recibo, n_recibo = None, None
-            if archivo_recibo:
-                b_recibo = archivo_recibo.getvalue()
-                n_recibo = archivo_recibo.name
-                suffix = os.path.splitext(n_recibo)[1]
-                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                    tmp.write(b_recibo)
-                    paths_dict['recibo'] = tmp.name
+            try:
+                paths_dict = {}
+                st.write("📥 [Paso 1] Leyendo archivos adjuntos en memoria...")
+                
+                b_recibo, n_recibo = None, None
+                if archivo_recibo:
+                    b_recibo = archivo_recibo.getvalue()
+                    n_recibo = archivo_recibo.name
+                    suffix = os.path.splitext(n_recibo)[1]
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                        tmp.write(b_recibo)
+                        paths_dict['recibo'] = tmp.name
 
-            # Procesar Veraz
-            b_veraz, n_veraz = None, None
-            if archivo_veraz:
-                b_veraz = archivo_veraz.getvalue()
-                n_veraz = archivo_veraz.name
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    tmp.write(b_veraz)
-                    paths_dict['veraz'] = tmp.name
+                b_veraz, n_veraz = None, None
+                if archivo_veraz:
+                    b_veraz = archivo_veraz.getvalue()
+                    n_veraz = archivo_veraz.name
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                        tmp.write(b_veraz)
+                        paths_dict['veraz'] = tmp.name
 
-            # Procesar Credixsa
-            b_credixsa, n_credixsa = None, None
-            if archivo_credixsa:
-                b_credixsa = archivo_credixsa.getvalue()
-                n_credixsa = archivo_credixsa.name
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-                    tmp.write(b_credixsa)
-                    paths_dict['credixsa'] = tmp.name
+                b_credixsa, n_credixsa = None, None
+                if archivo_credixsa:
+                    b_credixsa = archivo_credixsa.getvalue()
+                    n_credixsa = archivo_credixsa.name
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                        tmp.write(b_credixsa)
+                        paths_dict['credixsa'] = tmp.name
 
-            st.write("🧠 Conectando con Gemini 3.8-flash para análisis analítico...")
-            st.session_state.analisis_resultado, st.session_state.modelo_usado, st.session_state.tiempo_total = analizar_credito_con_fallback(
-                GEMINI_API_KEY, paths_dict, st.session_state.tipo_operacion, st.session_state.nombre_cliente
-            )
-            
-            st.write("📁 Buscando o creando la carpeta individual del cliente en Google Drive...")
-            id_carpeta_cliente = obtener_o_crear_carpeta_cliente(st.session_state.nombre_cliente)
-            
-            if id_carpeta_cliente:
-                st.write("📤 Guardando archivos originales en la carpeta de Drive del cliente...")
-                
-                if b_recibo and n_recibo:
-                    st.write(f"   ↳ Subiendo recibo: {n_recibo}")
-                    subir_bytes_a_drive(b_recibo, n_recibo, id_carpeta_cliente)
-                
-                if b_veraz and n_veraz:
-                    st.write(f"   ↳ Subiendo informe Veraz: {n_veraz}")
-                    subir_bytes_a_drive(b_veraz, n_veraz, id_carpeta_cliente)
-                
-                if b_credixsa and n_credixsa:
-                    st.write(f"   ↳ Subiendo reporte Credixsa: {n_credixsa}")
-                    subir_bytes_a_drive(b_credixsa, n_credixsa, id_carpeta_cliente)
-                
-                st.write("📊 Registrando planilla de auditoría en Google Sheets...")
-                registrar_auditoria_sheet(
-                    st.session_state.nombre_cliente,
-                    st.session_state.tipo_operacion,
-                    st.session_state.modelo_usado,
-                    st.session_state.tiempo_total,
-                    st.session_state.analisis_resultado,
-                    "Procesado y guardado correctamente",
-                    id_carpeta_cliente
+                st.write("🧠 [Paso 2] Conectando con Gemini 3.8-flash (analizando documentos)...")
+                res, mod, tiempo = analizar_credito_con_fallback(
+                    GEMINI_API_KEY, paths_dict, st.session_state.tipo_operacion, st.session_state.nombre_cliente
                 )
-            
-            for p in paths_dict.values():
-                if os.path.exists(p):
-                    try:
-                        os.unlink(p)
-                    except:
-                        pass
-            status.update(label="✅ ¡Proceso, análisis, guardado en Drive y auditoría completados con éxito!", state="complete", expanded=False)
+                st.session_state.analisis_resultado = res
+                st.session_state.modelo_usado = mod
+                st.session_state.tiempo_total = tiempo
+
+                st.write("📁 [Paso 3] Creando o buscando la carpeta del cliente en Google Drive...")
+                id_carpeta_cliente = obtener_o_crear_carpeta_cliente(st.session_state.nombre_cliente)
+                
+                if id_carpeta_cliente:
+                    st.write("📤 [Paso 4] Subiendo archivos a la carpeta de Google Drive...")
+                    if b_recibo and n_recibo:
+                        subir_bytes_a_drive(b_recibo, n_recibo, id_carpeta_cliente)
+                    if b_veraz and n_veraz:
+                        subir_bytes_a_drive(b_veraz, n_veraz, id_carpeta_cliente)
+                    if b_credixsa and n_credixsa:
+                        subir_bytes_a_drive(b_credixsa, n_credixsa, id_carpeta_cliente)
+                    
+                    st.write("📊 [Paso 5] Registrando auditoría en Google Sheets...")
+                    registrar_auditoria_sheet(
+                        st.session_state.nombre_cliente,
+                        st.session_state.tipo_operacion,
+                        st.session_state.modelo_usado,
+                        st.session_state.tiempo_total,
+                        st.session_state.analisis_resultado,
+                        "Procesado y guardado correctamente",
+                        id_carpeta_cliente
+                    )
+                else:
+                    st.error("⚠️ No se pudo obtener ni crear la carpeta del cliente en Google Drive.")
+
+                for p in paths_dict.values():
+                    if os.path.exists(p):
+                        try:
+                            os.unlink(p)
+                        except:
+                            pass
+                            
+                status.update(label="✅ ¡Proceso completado con éxito!", state="complete", expanded=False)
+
+            except Exception as err:
+                status.update(label="❌ Ocurrió un error crítico en el proceso.", state="error", expanded=True)
+                st.error(f"Detalle técnico del error: {str(err)}")
 
 # Mostrar resultados si ya fueron generados
 if st.session_state.analisis_resultado:
-    st.success("¡Operación finalizada y registrada en Google Drive!")
+    st.success("¡Operación finalizada y registrada con éxito!")
     
     st.info(f"📊 **Información de Rendimiento e IA:** Modelo utilizado: **{st.session_state.modelo_usado}** | Tiempo: **{st.session_state.tiempo_total} segundos** | Procesado el: **{fecha_hora_actual}**")
     
