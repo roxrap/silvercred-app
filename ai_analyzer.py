@@ -19,6 +19,7 @@ def analizar_credito_con_fallback(api_key, files_dict, tipo_operacion, nombre_cl
                     g_file = local_client.files.upload(file=path)
                     uploaded_files.append(g_file)
             
+            # Obtiene el prompt estructurado desde prompts.py
             prompt = obtener_prompt_credito(tipo_operacion, nombre_cliente)
             
             response = local_client.models.generate_content(
