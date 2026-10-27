@@ -55,7 +55,6 @@ def obtener_o_crear_carpeta_cliente(nombre_cliente):
 
 def subir_bytes_a_drive(file_bytes, original_name, id_carpeta_destino):
     if not drive_service or not file_bytes:
-        st.warning(f"⚠️ No hay contenido para el archivo: {original_name}")
         return None
     try:
         file_metadata = {
@@ -70,12 +69,9 @@ def subir_bytes_a_drive(file_bytes, original_name, id_carpeta_destino):
             media_body=media,
             fields='id'
         ).execute()
-        
-        file_id = file.get('id')
-        st.success(f"✅ Archivo guardado en Drive: {original_name}")
-        return file_id
+        return file.get('id')
     except Exception as e:
-        st.error(f"❌ Error al subir {original_name} a Drive: {e}")
+        st.error(f"Error al subir el archivo {original_name}: {e}")
         return None
 
 def obtener_o_crear_planilla_auditoria(id_carpeta_destino):
@@ -120,7 +116,6 @@ def obtener_o_crear_planilla_auditoria(id_carpeta_destino):
             ).execute()
             return spreadsheet_id
     except Exception as e:
-        st.error(f"Error al crear planilla de auditoría: {e}")
         return None
 
 def extraer_campo_texto(texto, patron):
@@ -178,5 +173,4 @@ def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto, 
         ).execute()
         return True
     except Exception as e:
-        st.error(f"Error al registrar auditoría en Sheets: {e}")
         return False
