@@ -6,7 +6,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
 # ID de tu planilla de Google Sheets ya creada de forma anticipada
-ID_PLANILLA_AUDITORIA = "PEGA_AQUÍ_EL_ID_DE_TU_GOOGLE_SHEET"
+ID_PLANILLA_AUDITORIA = "1ZsOW00rp2_chGm-Qt4iCTXFior0SaRiFj9_uobo4dA8"
 
 @st.cache_resource
 def init_google_services():
