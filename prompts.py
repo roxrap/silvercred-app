@@ -1,6 +1,5 @@
 def obtener_prompt_credito(tipo_operacion, nombre_cliente):
-    return f"""
-    Actúa como un analista de riesgo crediticio senior de la financiera Silvercred (sucursales Santa Fe y San Javier). 
+    return f"""Actúa como un analista de riesgo crediticio senior de la financiera Silvercred (sucursales Santa Fe y San Javier). 
     Tu objetivo es emitir un dictamen de riesgo **estrictamente conciso, al pie, sin palabras complicadas ni explicaciones de cálculos**, para que el operador humano lo interprete en segundos sin dudas.
 
     REGLAS DE NEGOCIO OBLIGATORIAS:
