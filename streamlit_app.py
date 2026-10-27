@@ -73,52 +73,60 @@ if submitted:
         
         with st.status("🚀 Ejecutando protocolo de análisis crediticio Silvercred...", expanded=True) as status:
             paths_dict = {}
-            bytes_dict = {}
-            names_dict = {}
-            st.write("📥 Leyendo archivos y preparando análisis...")
+            st.write("📥 Leyendo archivos adjuntos...")
             
+            # Procesar Recibo
+            b_recibo, n_recibo = None, None
             if archivo_recibo:
                 b_recibo = archivo_recibo.getvalue()
                 n_recibo = archivo_recibo.name
-                bytes_dict['recibo'] = b_recibo
-                names_dict['recibo'] = n_recibo
                 suffix = os.path.splitext(n_recibo)[1]
                 with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
                     tmp.write(b_recibo)
                     paths_dict['recibo'] = tmp.name
-        
+
+            # Procesar Veraz
+            b_veraz, n_veraz = None, None
             if archivo_veraz:
                 b_veraz = archivo_veraz.getvalue()
                 n_veraz = archivo_veraz.name
-                bytes_dict['veraz'] = b_veraz
-                names_dict['veraz'] = n_veraz
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                     tmp.write(b_veraz)
                     paths_dict['veraz'] = tmp.name
 
+            # Procesar Credixsa
+            b_credixsa, n_credixsa = None, None
             if archivo_credixsa:
                 b_credixsa = archivo_credixsa.getvalue()
                 n_credixsa = archivo_credixsa.name
-                bytes_dict['credixsa'] = b_credixsa
-                names_dict['credixsa'] = n_credixsa
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
                     tmp.write(b_credixsa)
                     paths_dict['credixsa'] = tmp.name
 
-            st.write("🧠 Conectando con Gemini (3.8-flash) para procesamiento analítico...")
+            st.write("🧠 Conectando con Gemini 3.8-flash para análisis analítico...")
             st.session_state.analisis_resultado, st.session_state.modelo_usado, st.session_state.tiempo_total = analizar_credito_con_fallback(
                 GEMINI_API_KEY, paths_dict, st.session_state.tipo_operacion, st.session_state.nombre_cliente
             )
             
-            st.write("📁 Creando o buscando la carpeta del cliente en Google Drive...")
+            st.write("📁 Buscando o creando la carpeta individual del cliente en Google Drive...")
             id_carpeta_cliente = obtener_o_crear_carpeta_cliente(st.session_state.nombre_cliente)
             
             if id_carpeta_cliente:
-                st.write("📤 Guardando archivos originales en la carpeta del cliente (vía memoria)...")
-                for key, b_data in bytes_dict.items():
-                    subir_bytes_a_drive(b_data, names_dict[key], id_carpeta_cliente)
+                st.write("📤 Guardando archivos originales en la carpeta de Drive del cliente...")
                 
-                st.write("📊 Registrando auditoría en Google Sheets dentro de la carpeta...")
+                if b_recibo and n_recibo:
+                    st.write(f"   ↳ Subiendo recibo: {n_recibo}")
+                    subir_bytes_a_drive(b_recibo, n_recibo, id_carpeta_cliente)
+                
+                if b_veraz and n_veraz:
+                    st.write(f"   ↳ Subiendo informe Veraz: {n_veraz}")
+                    subir_bytes_a_drive(b_veraz, n_veraz, id_carpeta_cliente)
+                
+                if b_credixsa and n_credixsa:
+                    st.write(f"   ↳ Subiendo reporte Credixsa: {n_credixsa}")
+                    subir_bytes_a_drive(b_credixsa, n_credixsa, id_carpeta_cliente)
+                
+                st.write("📊 Registrando planilla de auditoría en Google Sheets...")
                 registrar_auditoria_sheet(
                     st.session_state.nombre_cliente,
                     st.session_state.tipo_operacion,
