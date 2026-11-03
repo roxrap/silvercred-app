@@ -43,40 +43,39 @@ if "nombre_cliente" not in st.session_state:
     st.session_state.nombre_cliente = None
 if "tipo_operacion" not in st.session_state:
     st.session_state.tipo_operacion = None
-if "dni_cliente" not in st.session_state:
-    st.session_state.dni_cliente = None
+if "cuil_cliente" not in st.session_state:
+    st.session_state.cuil_cliente = None
 
 # --- INTERFAZ PRINCIPAL ---
 st.title("💳 Silvercred - Sistema de Evaluación Crediticia")
-st.markdown("Paso 1: Validación obligatoria en línea contra la Central de Deudores del BCRA por API antes de continuar con el legajo.")
+st.markdown("---")
+st.subheader("🔍 Paso 1: Central de Deudores BCRA")
 
 # ==========================================
 # PASO 1: VALIDACIÓN PREVIA POR API BCRA
 # ==========================================
 with st.form("form_bcra_previa"):
-    st.subheader("🔍 Consulta Inicial - Central de Deudores BCRA")
     col_dni1, col_dni2, col_dni3 = st.columns([2, 1, 1])
     with col_dni1:
-        nombre_cliente_input = st.text_input("Apellido y Nombre Completo del Cliente", placeholder="Ej: QUIROGA, MARISA ALEJANDRA", value=st.session_state.nombre_cliente or "")
+        nombre_cliente_input = st.text_input("Apellido y Nombre Completo del Cliente", placeholder="Ej: RAPALI, ROXANA ANALIA", value=st.session_state.nombre_cliente or "")
     with col_dni2:
-        dni_input = st.text_input("CUIL (Solo números)", placeholder="Ej: 27224532802", value=st.session_state.dni_cliente or "")
+        cuil_input = st.text_input("CUIL del Cliente (11 dígitos)", placeholder="Ej: 27294758882", value=st.session_state.cuil_cliente or "")
     with col_dni3:
         tipo_op_input = st.selectbox("Tipo de Operación", ["Apertura", "Renovación"], index=0 if st.session_state.tipo_operacion == "Apertura" else 1)
         
     btn_consultar_bcra = st.form_submit_button("Consultar BCRA por API")
 
 if btn_consultar_bcra:
-    if not nombre_cliente_input.strip() or not dni_input.strip():
-        st.warning("Por favor, completa el nombre y el DNI/CUIL para realizar la consulta en el BCRA.")
+    if not nombre_cliente_input.strip() or not cuil_input.strip():
+        st.warning("Por favor, completa el nombre y el CUIL de 11 dígitos para realizar la consulta en el BCRA.")
     else:
         st.session_state.nombre_cliente = nombre_cliente_input.strip().upper()
-        st.session_state.dni_cliente = dni_input.strip()
+        st.session_state.cuil_cliente = cuil_input.strip()
         st.session_state.tipo_operacion = tipo_op_input
         
         with st.spinner("Consultando API oficial del Banco Central (BCRA)..."):
-            resultado_bcra = consultar_bcra_api(st.session_state.dni_cliente)
+            resultado_bcra = consultar_bcra_api(st.session_state.cuil_cliente)
             st.session_state.bcra_resultado = resultado_bcra
-            # Limpiar análisis anterior si cambia de cliente
             st.session_state.analisis_resultado = None
 
 # Mostrar resultado del BCRA si ya fue consultado
@@ -88,21 +87,22 @@ if st.session_state.bcra_resultado:
     else:
         st.info(f"📋 **Titular BCRA:** {res_bcra.get('denominacion')} | **Estado:** {res_bcra.get('mensaje')}")
         
-        # Mostrar la tabla limpia con las 6 columnas exactas del reporte BCRA
+        # Mostrar la tabla limpia con las columnas exactas del reporte BCRA
         items_bcra = res_bcra.get("items_tabla", [])
         if items_bcra:
             st.markdown("##### Detalle Central de Deudores BCRA")
             st.dataframe(items_bcra, use_container_width=True, hide_index=True)
+        else:
+            st.info("Sin deudas o entidades informantes registradas en el período actual.")
         
         # SI ESTÁ RECHAZADO POR EL BCRA (Ej: Situación 4 o 5)
         if res_bcra.get("rechazado"):
             st.error("🚨 **CRÉDITO RECHAZADO EN INSTANCIA BCRA:** El cliente registra antecedentes en situaciones críticas (Sit 4 o 5). No es necesario cargar más documentación.")
             
-            # Registrar automáticamente el rechazo en Google Sheets si no se hizo
             if st.session_state.analisis_resultado is None:
                 dictamen_rechazo = f"""1. Datos Identificatorios:
 - Apellido y Nombre: {st.session_state.nombre_cliente}
-- DNI/CUIL: {st.session_state.dni_cliente}
+- CUIL: {st.session_state.cuil_cliente}
 - Tipo de Operación: {st.session_state.tipo_operacion}
 
 5. Resolución Crediticia:
@@ -189,7 +189,6 @@ Fundamento Técnico: Rechazado de manera directa por la API del BCRA debido a re
                                     pass
                                     
                         status.update(label="✅ ¡Análisis completado y registrado en Sheets con éxito!", state="complete", expanded=False)
-
 
 # Mostrar resultados si ya fueron generados por la IA
 if st.session_state.analisis_resultado and not (st.session_state.bcra_resultado and st.session_state.bcra_resultado.get("rechazado")):
