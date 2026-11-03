@@ -59,7 +59,7 @@ with st.form("form_bcra_previa"):
     with col_dni1:
         nombre_cliente_input = st.text_input("Apellido y Nombre Completo del Cliente", placeholder="Ej: QUIROGA, MARISA ALEJANDRA", value=st.session_state.nombre_cliente or "")
     with col_dni2:
-        dni_input = st.text_input("DNI / CUIL (Solo números)", placeholder="Ej: 22453280", value=st.session_state.dni_cliente or "")
+        dni_input = st.text_input("CUIL (Solo números)", placeholder="Ej: 27224532802", value=st.session_state.dni_cliente or "")
     with col_dni3:
         tipo_op_input = st.selectbox("Tipo de Operación", ["Apertura", "Renovación"], index=0 if st.session_state.tipo_operacion == "Apertura" else 1)
         
@@ -88,6 +88,12 @@ if st.session_state.bcra_resultado:
     else:
         st.info(f"📋 **Titular BCRA:** {res_bcra.get('denominacion')} | **Estado:** {res_bcra.get('mensaje')}")
         
+        # Mostrar la tabla limpia con las 6 columnas exactas del reporte BCRA
+        items_bcra = res_bcra.get("items_tabla", [])
+        if items_bcra:
+            st.markdown("##### Detalle Central de Deudores BCRA")
+            st.dataframe(items_bcra, use_container_width=True, hide_index=True)
+        
         # SI ESTÁ RECHAZADO POR EL BCRA (Ej: Situación 4 o 5)
         if res_bcra.get("rechazado"):
             st.error("🚨 **CRÉDITO RECHAZADO EN INSTANCIA BCRA:** El cliente registra antecedentes en situaciones críticas (Sit 4 o 5). No es necesario cargar más documentación.")
@@ -95,9 +101,9 @@ if st.session_state.bcra_resultado:
             # Registrar automáticamente el rechazo en Google Sheets si no se hizo
             if st.session_state.analisis_resultado is None:
                 dictamen_rechazo = f"""1. Datos Identificatorios:
-• Apellido y Nombre: {st.session_state.nombre_cliente}
-• DNI: {st.session_state.dni_cliente}
-• Tipo de Operación: {st.session_state.tipo_operacion}
+- Apellido y Nombre: {st.session_state.nombre_cliente}
+- DNI/CUIL: {st.session_state.dni_cliente}
+- Tipo de Operación: {st.session_state.tipo_operacion}
 
 5. Resolución Crediticia:
 DICTAMEN: RECHAZADO
@@ -158,9 +164,6 @@ Fundamento Técnico: Rechazado de manera directa por la API del BCRA debido a re
 
                         st.write("🧠 Conectando con Gemini para procesamiento analítico optimizado...")
                         
-                        # Inyectar el reporte del BCRA obtenido por API al contexto de la IA
-                        info_bcra_api_texto = f"BCRA (API Oficial): {res_bcra.get('mensaje')} - Detalle: {res_bcra.get('detalle')}"
-                        
                         res, mod, tiempo = analizar_credito_con_fallback(
                             GEMINI_API_KEY, paths_dict, st.session_state.tipo_operacion, st.session_state.nombre_cliente
                         )
@@ -186,6 +189,7 @@ Fundamento Técnico: Rechazado de manera directa por la API del BCRA debido a re
                                     pass
                                     
                         status.update(label="✅ ¡Análisis completado y registrado en Sheets con éxito!", state="complete", expanded=False)
+
 
 # Mostrar resultados si ya fueron generados por la IA
 if st.session_state.analisis_resultado and not (st.session_state.bcra_resultado and st.session_state.bcra_resultado.get("rechazado")):
