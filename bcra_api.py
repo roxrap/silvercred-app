@@ -3,10 +3,9 @@ import requests
 def consultar_bcra_api(identificacion):
     """
     Consulta la API pública del BCRA (Central de Deudores) usando el CUIT/CUIL de 11 dígitos.
-    Retorna los datos estructurados en formato tabular limpio.
+    Extrae correctamente el periodo, la entidad, situación, monto y días de atraso.
     """
     try:
-        # Limpiar la entrada para dejar estrictamente solo números
         id_limpia = "".join(filter(str.isdigit, str(identificacion)))
         
         if len(id_limpia) != 11:
@@ -37,9 +36,11 @@ def consultar_bcra_api(identificacion):
             peor_situacion = 1
             items_tabla = []
             
-            for periodo in periodos:
-                fecha = periodo.get("fecha", "")
-                entidades = periodo.get("entidades", [])
+            # Recorrer correctamente los periodos y las entidades anidadas
+            for periodo_obj in periodos:
+                fecha = periodo_obj.get("periodo", "") or periodo_obj.get("fecha", "")
+                entidades = periodo_obj.get("entidades", [])
+                
                 for ent in entidades:
                     entidad_nombre = ent.get("entidad", "Entidad financiera")
                     sit = ent.get("situacion", 1)
@@ -49,13 +50,17 @@ def consultar_bcra_api(identificacion):
                     if sit > peor_situacion:
                         peor_situacion = sit
                         
-                    # Formatear el monto en miles de pesos según el estándar del BCRA
-                    monto_str = f"${monto:,.3f}" if isinstance(monto, (int, float)) else str(monto)
+                    # Formatear el monto correctamente
+                    try:
+                        monto_num = float(monto)
+                        monto_str = f"${monto_num:,.2f}"
+                    except:
+                        monto_str = str(monto)
                     
                     items_tabla.append({
                         "Denominación del deudor": denominacion,
                         "Entidad": entidad_nombre,
-                        "Periodo": fecha,
+                        "Periodo": str(fecha),
                         "Situación": sit,
                         "Monto": monto_str,
                         "Días de atraso": dias_atraso
@@ -79,7 +84,7 @@ def consultar_bcra_api(identificacion):
         elif response.status_code == 400:
             return {
                 "valido": False,
-                "mensaje": f"El BCRA rechazó el formato ({id_limpia}). Asegúrese de ingresar un CUIL válido de 11 dígitos."
+                "mensaje": f"El BCRA rechazó el formato ({id_limpia}). Ingrese un CUIL válido de 11 dígitos."
             }
         elif response.status_code == 404:
             return {
