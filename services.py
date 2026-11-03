@@ -1,86 +1,104 @@
+import os
+import json
+import gspread
+from google.oauth2.service_account import Credentials
 import streamlit as st
 import re
-import os
-from datetime import datetime, timedelta
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
 
-# ID de tu planilla de Google Sheets ya creada de forma anticipada
-ID_PLANILLA_AUDITORIA = "1ZsOW00rp2_chGm-Qt4iCTXFior0SaRiFj9_uobo4dA8"
-
-@st.cache_resource
-def init_google_services():
+def obtener_cliente_sheets():
+    """Conecta a Google Sheets utilizando las credenciales de servicio configuradas en st.secrets."""
     try:
-        if "gcp_service_account" not in st.secrets:
-            return None, None
-            
-        credentials_dict = dict(st.secrets["gcp_service_account"])
-        gcp_creds = service_account.Credentials.from_service_account_info(
-            credentials_dict,
-            scopes=['https://www.googleapis.com/auth/spreadsheets']
-        )
-        sheets_service = build('sheets', 'v4', credentials=gcp_creds)
-        return None, sheets_service
+        scope = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive"
+        ]
+        
+        # Cargar credenciales desde los secretos de Streamlit
+        gcp_dict = dict(st.secrets["gcp_service_account"])
+        credentials = Credentials.from_service_account_info(gcp_dict, scopes=scope)
+        client = gspread.authorize(credentials)
+        return client
     except Exception as e:
-        st.error(f"Error inicializando servicio de Sheets: {e}")
-        return None, None
-
-_, sheets_service = init_google_services()
+        print(f"Error al conectar con Google Sheets: {e}")
+        return None
 
 def extraer_campo_texto(texto, patron):
+    """Extrae un valor del texto de la IA usando expresiones regulares."""
     match = re.search(patron, texto, re.IGNORECASE)
-    if match:
-        return match.group(1).strip()
-    return "N/D"
+    return match.group(1).strip() if match else "N/D"
 
-def registrar_auditoria_sheet(cliente, tipo_op, modelo, tiempo, dictamen_texto):
-    if not sheets_service or ID_PLANILLA_AUDITORIA == "PEGA_AQUÍ_EL_ID_DE_TU_GOOGLE_SHEET":
-        return False
+def registrar_auditoria_sheet(nombre_cliente, tipo_operacion, modelo, tiempo, resultado_ia):
+    """
+    Registra una fila de auditoría en Google Sheets siguiendo estrictamente 
+    las 17 columnas de la A a la Q.
+    """
     try:
-        resultado = "REVISAR"
-        if "DICTAMEN: APROBADO" in dictamen_texto.upper() or "APROBADO" in dictamen_texto.upper():
-            resultado = "APROBADO"
-        elif "DICTAMEN: RECHAZADO" in dictamen_texto.upper() or "RECHAZADO" in dictamen_texto.upper():
-            resultado = "RECHAZADO"
-        elif "DICTAMEN: CONDICIONADO" in dictamen_texto.upper() or "CONDICIONADO" in dictamen_texto.upper():
-            resultado = "CONDICIONADO"
-            
-        # Hora ajustada para Argentina (UTC-3)
-        f_argentina = datetime.now(datetime.UTC) - timedelta(hours=3) if hasattr(datetime, "UTC") else datetime.utcnow() - timedelta(hours=3)
-        fecha_hora = f_argentina.strftime("%d/%m/%Y %H:%M:%S")
-        
+        client = obtener_cliente_sheets()
+        if not client:
+            return False
+
+        # Abrir la planilla (puedes ajustar el nombre o usar ID si prefieres)
+        # Nota: Asegúrate de que el bot/cuenta de servicio tenga permisos de Editor en la planilla.
+        sheet_url = st.secrets.get("SHEET_URL", "")
+        if sheet_url:
+            sheet = client.open_by_url(sheet_url).sheet1
+        else:
+            # Fallback buscando por nombre si estuviera configurado
+            sheet = client.open("Silvercred_Auditoria").sheet1
+
+        from datetime import datetime, timedelta, timezone
+        zona_arg = timezone(timedelta(hours=-3))
+        fecha_hora = datetime.now(zona_arg).strftime("%d/%m/%Y %H:%M:%S")
         modelo_y_tiempo = f"{modelo} ({tiempo}s)"
-        
-        ingreso_neto = extraer_campo_texto(dictamen_texto, r"Ingreso Neto Comprobado:\s*(.*)")
-        sit_laboral = extraer_campo_texto(dictamen_texto, r"Situación Laboral:\s*(.*)")
-        antiguedad = extraer_campo_texto(dictamen_texto, r"Antigüedad Laboral:\s*(.*)")
-        cuota_max = extraer_campo_texto(dictamen_texto, r"Cuota Máxima.*?:\s*(.*)")
-        monto_max = extraer_campo_texto(dictamen_texto, r"Monto máximo disponible:\s*(.*)")
-        bcra = extraer_campo_texto(dictamen_texto, r"BCRA:\s*(.*)")
-        equifax = extraer_campo_texto(dictamen_texto, r"Score Equifax:\s*(.*)")
-        credixsa = extraer_campo_texto(dictamen_texto, r"Reporte Credixsa:\s*(.*)")
-        antecedentes = extraer_campo_texto(dictamen_texto, r"Antecedentes Negativos:\s*(.*)")
-        compromiso = extraer_campo_texto(dictamen_texto, r"Compromiso Mensual Inferido:\s*(.*)")
-        margen = extraer_campo_texto(dictamen_texto, r"Margen Disponible Cuota Mensual:\s*(.*)")
-        limite_sugerido = extraer_campo_texto(dictamen_texto, r"Límite de Cuota Sugerido:\s*(.*)")
 
-        row_body = {
-            'values': [[
-                fecha_hora, cliente, tipo_op, modelo_y_tiempo, resultado,
-                ingreso_neto, sit_laboral, antiguedad, cuota_max, monto_max,
-                bcra, equifax, credixsa, antecedentes, compromiso, margen, limite_sugerido
-            ]]
-        }
-        
-        sheets_service.spreadsheets().values().append(
-            spreadsheetId=ID_PLANILLA_AUDITORIA,
-            range='A:Q',
-            valueInputOption='USER_ENTERED',
-            body=row_body
-        ).execute()
+        # --- PARSING INTELIGENTE DE LA RESPUESTA DE LA IA ---
+        # Extraer dictamen (APROBADO, CONDICIONADO, RECHAZADO)
+        dictamen = "REVISAR"
+        if "DICTAMEN: APROBADO" in resultado_ia.upper():
+            dictamen = "APROBADO"
+        elif "DICTAMEN: CONDICIONADO" in resultado_ia.upper():
+            dictamen = "CONDICIONADO"
+        elif "DICTAMEN: RECHAZADO" in resultado_ia.upper():
+            dictamen = "RECHAZADO"
+
+        # Extracción de campos clave del dictamen para las 17 columnas
+        neto = extraer_campo_texto(resultado_ia, r"Ingreso Neto Comprobado[:\s]*([^\n]+)")
+        situacion_lab = extraer_campo_texto(resultado_ia, r"Situación Laboral[:\s]*([^\n]+)")
+        antiguedad = extraer_campo_texto(resultado_ia, r"Antigüedad Laboral[:\s]*([^\n]+)")
+        cuota_max = extraer_campo_texto(resultado_ia, r"Cuota Máxima.*?[:\s]*([^\n]+)")
+        capital_max = extraer_campo_texto(resultado_ia, r"Capital Máximo[:\s]*([^\n]+)")
+        bcra = extraer_campo_texto(resultado_ia, r"BCRA[:\s]*([^\n]+)")
+        score = extraer_campo_texto(resultado_ia, r"Score.*?[:\s]*([^\n]+)")
+        credixsa = extraer_campo_texto(resultado_ia, r"Reporte Credixsa.*?[:\s]*([^\n]+)")
+        antecedentes = extraer_campo_texto(resultado_ia, r"Antecedentes.*?[:\s]*([^\n]+)")
+        consultas = extraer_campo_texto(resultado_ia, r"Consultas.*?[:\s]*([^\n]+)")
+        fundamento = extraer_campo_texto(resultado_ia, r"Fundamento Técnico[:\s]*([^\n]+)")
+
+        # --- FILA EXACTA DE 17 COLUMNAS (A a la Q) ---
+        fila_datos = [
+            fecha_hora,                  # A: Fecha y Hora
+            nombre_cliente,              # B: Cliente
+            tipo_operacion,              # C: Tipo Operación
+            modelo_y_tiempo,             # D: Modelo IA y Tiempo
+            dictamen,                    # E: Resultado Dictamen (APROBADO/CONDICIONADO/RECHAZADO)
+            neto,                        # F: Ingreso Neto Comprobado
+            situacion_lab,               # G: Situación Laboral
+            antiguedad,                  # H: Antigüedad Laboral
+            cuota_max,                   # I: Cuota Máxima (30% Neto)
+            capital_max,                 # J: Capital Máximo
+            bcra,                        # K: BCRA
+            score,                       # L: Score Veraz
+            credixsa,                    # M: Reporte Credixsa
+            antecedentes,                # N: Antecedentes Negativos
+            consultas,                   # O: Consultas últimos 3 meses
+            fundamento,                  # P: Fundamento Técnico
+            "Procesado OK"               # Q: Observaciones
+        ]
+
+        # Escribir secuencialmente en la siguiente fila libre
+        sheet.append_row(fila_datos)
         return True
+
     except Exception as e:
-        st.error(f"Error escribiendo en Google Sheets: {e}")
+        print(f"Error al registrar en Google Sheets: {e}")
         return False
-
-
