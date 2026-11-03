@@ -51,8 +51,8 @@ def consultar_bcra_api(identificacion):
                 for ent in entidades:
                     entidad_nombre = ent.get("entidad", "Entidad financiera")
                     sit = ent.get("situacion", 1)
-                    
-                    # Capturar el monto evaluando las posibles claves que devuelve la API
+
+                    # Capturar el monto de forma limpia
                     monto = ent.get("monto", None)
                     if monto is None:
                         monto = ent.get("importe", 0)
@@ -62,13 +62,15 @@ def consultar_bcra_api(identificacion):
                     if sit > peor_situacion:
                         peor_situacion = sit
                         
-                    # Formatear el monto correctamente
+                    # Formatear el monto de manera limpia sin decimales extraños
                     try:
                         monto_num = float(monto)
-                        monto_str = f"{monto_num:,.3f}" if monto_num >= 1000 else f"{monto_num:.0f}"
+                        # Si es un número entero grande, lo mostramos con separador de miles limpio
+                        monto_str = f"{int(monto_num):,}".replace(",", ".")
                     except:
                         monto_str = str(monto)
                     
+                         
                     items_tabla.append({
                         "Denominación del deudor": denominacion,
                         "Entidad": entidad_nombre,
