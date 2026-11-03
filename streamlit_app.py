@@ -22,7 +22,7 @@ GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 # --- BARRA LATERAL ---
 with st.sidebar:
     if os.path.exists("logo.png"):
-        st.image("logo.png", use_container_width=True)
+        st.image("logo.png", width="stretch")
     st.markdown("---")
     st.markdown("### 🏢 Sucursales operativas")
     st.markdown("- Santa Fe\n- San Javier")
