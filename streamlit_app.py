@@ -5,11 +5,9 @@ from services import registrar_auditoria_sheet
 from ai_analyzer import analizar_credito_con_fallback
 from datetime import datetime, timedelta, timezone
 
-# Zona horaria UTC-3 para Argentina de forma limpia y moderna
+# --- CONFIGURACIÓN DE ZONA HORARIA ARGENTINA (UTC-3) ---
 zona_arg = timezone(timedelta(hours=-3))
 f_argentina = datetime.now(zona_arg)
-# Hora ajustada para Argentina (UTC-3)
-f_argentina = datetime.now(datetime.UTC) - timedelta(hours=3) if hasattr(datetime, "UTC") else datetime.utcnow() - timedelta(hours=3)
 fecha_hora_actual = f_argentina.strftime("%d/%m/%Y %H:%M:%S")
 
 # --- CONFIGURACIÓN DE PÁGINA ---
@@ -24,7 +22,7 @@ GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 # --- BARRA LATERAL ---
 with st.sidebar:
     if os.path.exists("logo.png"):
-        st.image("logo.png", width='stretch')
+        st.image("logo.png", use_container_width=True)
     st.markdown("---")
     st.markdown("### 🏢 Sucursales operativas")
     st.markdown("- Santa Fe\n- San Javier")
@@ -94,7 +92,7 @@ if submitted:
                     tmp.write(archivo_credixsa.getvalue())
                     paths_dict['credixsa'] = tmp.name
 
-            st.write("🧠 Conectando con Gemini 3.8-flash para procesamiento analítico...")
+            st.write("🧠 Conectando con Gemini para procesamiento analítico optimizado...")
             res, mod, tiempo = analizar_credito_con_fallback(
                 GEMINI_API_KEY, paths_dict, st.session_state.tipo_operacion, st.session_state.nombre_cliente
             )
