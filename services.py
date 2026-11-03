@@ -51,8 +51,7 @@ def registrar_auditoria_sheet(nombre_cliente, tipo_operacion, modelo, tiempo, re
         fecha_hora = datetime.now(zona_arg).strftime("%d/%m/%Y %H:%M:%S")
         modelo_y_tiempo = f"{modelo} ({tiempo}s)"
 
-        # --- PARSING INTELIGENTE DE LA RESPUESTA DE LA IA ---
-        # Extraer dictamen (APROBADO, CONDICIONADO, RECHAZADO)
+# --- PARSING DIRECTO Y SEGURO ---
         dictamen = "REVISAR"
         if "DICTAMEN: APROBADO" in resultado_ia.upper():
             dictamen = "APROBADO"
@@ -61,7 +60,7 @@ def registrar_auditoria_sheet(nombre_cliente, tipo_operacion, modelo, tiempo, re
         elif "DICTAMEN: RECHAZADO" in resultado_ia.upper():
             dictamen = "RECHAZADO"
 
-        # Extracción de campos clave del dictamen para las 17 columnas
+        # Extraer campos garantizando que nunca sean nulos
         neto = extraer_campo_texto(resultado_ia, r"Ingreso Neto Comprobado[:\s]*([^\n]+)")
         situacion_lab = extraer_campo_texto(resultado_ia, r"Situación Laboral[:\s]*([^\n]+)")
         antiguedad = extraer_campo_texto(resultado_ia, r"Antigüedad Laboral[:\s]*([^\n]+)")
@@ -76,29 +75,25 @@ def registrar_auditoria_sheet(nombre_cliente, tipo_operacion, modelo, tiempo, re
 
         # --- FILA EXACTA DE 17 COLUMNAS (A a la Q) ---
         fila_datos = [
-            fecha_hora,                  # A: Fecha y Hora
-            nombre_cliente,              # B: Cliente
-            tipo_operacion,              # C: Tipo Operación
-            modelo_y_tiempo,             # D: Modelo IA y Tiempo
-            dictamen,                    # E: Resultado Dictamen (APROBADO/CONDICIONADO/RECHAZADO)
-            neto,                        # F: Ingreso Neto Comprobado
-            situacion_lab,               # G: Situación Laboral
-            antiguedad,                  # H: Antigüedad Laboral
-            cuota_max,                   # I: Cuota Máxima (30% Neto)
-            capital_max,                 # J: Capital Máximo
-            bcra,                        # K: BCRA
-            score,                       # L: Score Veraz
-            credixsa,                    # M: Reporte Credixsa
-            antecedentes,                # N: Antecedentes Negativos
-            consultas,                   # O: Consultas últimos 3 meses
-            fundamento,                  # P: Fundamento Técnico
-            "Procesado OK"               # Q: Observaciones
+            str(fecha_hora),                  # A
+            str(nombre_cliente),              # B
+            str(tipo_operacion),              # C
+            str(modelo_y_tiempo),             # D
+            str(dictamen),                    # E
+            str(neto),                        # F
+            str(situacion_lab),               # G
+            str(antiguedad),                  # H
+            str(cuota_max),                   # I
+            str(capital_max),                 # J
+            str(bcra),                        # K
+            str(score),                       # L
+            str(credixsa),                    # M
+            str(antecedentes),                # N
+            str(consultas),                   # O
+            str(fundamento),                  # P
+            "Procesado OK"                    # Q
         ]
 
-        # Escribir secuencialmente en la siguiente fila libre
+        # Forzar la escritura en la hoja
         sheet.append_row(fila_datos)
         return True
-
-    except Exception as e:
-        print(f"Error al registrar en Google Sheets: {e}")
-        return False
