@@ -1,10 +1,13 @@
 import streamlit as st
 import os
 import tempfile
-from datetime import datetime, timedelta
 from services import registrar_auditoria_sheet
 from ai_analyzer import analizar_credito_con_fallback
+from datetime import datetime, timedelta, timezone
 
+# Zona horaria UTC-3 para Argentina de forma limpia y moderna
+zona_arg = timezone(timedelta(hours=-3))
+f_argentina = datetime.now(zona_arg)
 # Hora ajustada para Argentina (UTC-3)
 f_argentina = datetime.now(datetime.UTC) - timedelta(hours=3) if hasattr(datetime, "UTC") else datetime.utcnow() - timedelta(hours=3)
 fecha_hora_actual = f_argentina.strftime("%d/%m/%Y %H:%M:%S")
