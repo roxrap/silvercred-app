@@ -13,7 +13,6 @@ def obtener_cliente_sheets():
             "https://www.googleapis.com/auth/drive"
         ]
         
-        # Cargar credenciales desde los secretos de Streamlit
         gcp_dict = dict(st.secrets["gcp_service_account"])
         credentials = Credentials.from_service_account_info(gcp_dict, scopes=scope)
         client = gspread.authorize(credentials)
@@ -38,7 +37,6 @@ def registrar_auditoria_sheet(nombre_cliente, tipo_operacion, modelo, tiempo, re
             st.error("⚠️ Error: No se pudo autorizar el cliente de Google Sheets.")
             return False
 
-        # Abrir la planilla por URL desde los secretos o por nombre por defecto
         sheet_url = st.secrets.get("SHEET_URL", "")
         if sheet_url:
             sheet = client.open_by_url(sheet_url).sheet1
@@ -50,7 +48,6 @@ def registrar_auditoria_sheet(nombre_cliente, tipo_operacion, modelo, tiempo, re
         fecha_hora = datetime.now(zona_arg).strftime("%d/%m/%Y %H:%M:%S")
         modelo_y_tiempo = f"{modelo} ({tiempo}s)"
 
-        # --- PARSING DIRECTO Y SEGURO DE DICTAMEN ---
         dictamen = "REVISAR"
         if "DICTAMEN: APROBADO" in resultado_ia.upper() or "APROBADO" in resultado_ia.upper():
             dictamen = "APROBADO"
@@ -59,7 +56,6 @@ def registrar_auditoria_sheet(nombre_cliente, tipo_operacion, modelo, tiempo, re
         elif "DICTAMEN: RECHAZADO" in resultado_ia.upper() or "RECHAZADO" in resultado_ia.upper():
             dictamen = "RECHAZADO"
 
-        # Extraer campos garantizando que nunca sean nulos
         neto = extraer_campo_texto(resultado_ia, r"Ingreso Neto Comprobado[:\s]*([^\n]+)")
         situacion_lab = extraer_campo_texto(resultado_ia, r"Situación Laboral[:\s]*([^\n]+)")
         antiguedad = extraer_campo_texto(resultado_ia, r"Antigüedad Laboral[:\s]*([^\n]+)")
@@ -72,28 +68,26 @@ def registrar_auditoria_sheet(nombre_cliente, tipo_operacion, modelo, tiempo, re
         consultas = extraer_campo_texto(resultado_ia, r"Consultas.*?[:\s]*([^\n]+)")
         fundamento = extraer_campo_texto(resultado_ia, r"Fundamento Técnico[:\s]*([^\n]+)")
 
-        # --- FILA EXACTA DE 17 COLUMNAS (A a la Q) ---
         fila_datos = [
-            str(fecha_hora),                  # A: Fecha y Hora
-            str(nombre_cliente),              # B: Cliente
-            str(tipo_operacion),              # C: Tipo Operación
-            str(modelo_y_tiempo),             # D: Modelo IA y Tiempo
-            str(dictamen),                    # E: Resultado Dictamen
-            str(neto),                        # F: Ingreso Neto Comprobado
-            str(situacion_lab),               # G: Situación Laboral
-            str(antiguedad),                  # H: Antigüedad Laboral
-            str(cuota_max),                   # I: Cuota Máxima (30% Neto)
-            str(capital_max),                 # J: Capital Máximo
-            str(bcra),                        # K: BCRA
-            str(score),                       # L: Score Veraz
-            str(credixsa),                    # M: Reporte Credixsa
-            str(antecedentes),                # N: Antecedentes Negativos
-            str(consultas),                   # O: Consultas últimos 3 meses
-            str(fundamento),                  # P: Fundamento Técnico
-            "Procesado OK"                    # Q: Observaciones
+            str(fecha_hora),                  # A
+            str(nombre_cliente),              # B
+            str(tipo_operacion),              # C
+            str(modelo_y_tiempo),             # D
+            str(dictamen),                    # E
+            str(neto),                        # F
+            str(situacion_lab),               # G
+            str(antiguedad),                  # H
+            str(cuota_max),                   # I
+            str(capital_max),                 # J
+            str(bcra),                        # K
+            str(score),                       # L
+            str(credixsa),                    # M
+            str(antecedentes),                # N
+            str(consultas),                   # O
+            str(fundamento),                  # P
+            "Procesado OK"                    # Q
         ]
 
-        # Forzar la escritura en la hoja usando USER_ENTERED para respetar tipos
         sheet.append_row(fila_datos, value_input_option='USER_ENTERED')
         return True
 
