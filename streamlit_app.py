@@ -87,13 +87,16 @@ if st.session_state.bcra_resultado:
     else:
         st.info(f"📋 **Titular BCRA:** {res_bcra.get('denominacion')} | **Estado:** {res_bcra.get('mensaje')}")
         
-        # Mostrar la tabla limpia con las columnas exactas del reporte BCRA
+
+        # Mostrar la tabla limpia con las columnas exactas del reporte BCRA (Usando st.table para evitar errores de carga de componentes)
         items_bcra = res_bcra.get("items_tabla", [])
         if items_bcra:
             st.markdown("##### Detalle Central de Deudores BCRA")
-            st.dataframe(items_bcra, use_container_width=True, hide_index=True)
+            st.table(items_bcra)
         else:
             st.info("Sin deudas o entidades informantes registradas en el período actual.")
+
+
         
         # SI ESTÁ RECHAZADO POR EL BCRA (Ej: Situación 4 o 5)
         if res_bcra.get("rechazado"):
