@@ -2,21 +2,20 @@ import requests
 
 def consultar_bcra_api(identificacion):
     """
-    Consulta la API pública y oficial del BCRA (Central de Deudores) usando el CUIT/CUIL o DNI.
-    Retorna un diccionario con el análisis de la situación crediticia.
+    Consulta la API pública del BCRA (Central de Deudores) usando el CUIT/CUIL de 11 dígitos.
+    Retorna los datos estructurados en formato tabular limpio.
     """
     try:
-        # Limpiar la entrada para dejar solo números
+        # Limpiar la entrada para dejar estrictamente solo números
         id_limpia = "".join(filter(str.isdigit, str(identificacion)))
-        if not id_limpia or len(id_limpia) < 7:
+        
+        if len(id_limpia) != 11:
             return {
                 "valido": False,
-                "mensaje": "Identificación (DNI/CUIT) no válida para consultar en el BCRA."
+                "mensaje": "La API del BCRA exige el CUIL completo de 11 dígitos (ej: 20XXXXXXXXX)."
             }
 
         url = f"https://api.bcra.gob.ar/centraldedeudores/v1.0/Deudas/{id_limpia}"
-        
-        # Realizar la petición GET con un timeout de 8 segundos
         response = requests.get(url, timeout=8)
         
         if response.status_code == 200:
@@ -30,13 +29,13 @@ def consultar_bcra_api(identificacion):
                     "valido": True,
                     "denominacion": denominacion,
                     "peor_situacion": 1,
-                    "detalle": "Sin antecedentes de deuda registrados en el BCRA.",
-                    "rechazado": False
+                    "items_tabla": [],
+                    "rechazado": False,
+                    "mensaje": "Situación 1 (Sin deudas registradas)"
                 }
 
-            # Analizar las deudas y situaciones reportadas
             peor_situacion = 1
-            detalle_deudas = []
+            items_tabla = []
             
             for periodo in periodos:
                 fecha = periodo.get("fecha", "")
@@ -45,16 +44,25 @@ def consultar_bcra_api(identificacion):
                     entidad_nombre = ent.get("entidad", "Entidad financiera")
                     sit = ent.get("situacion", 1)
                     monto = ent.get("importe", 0)
+                    dias_atraso = ent.get("diasAtraso", "N/A")
                     
                     if sit > peor_situacion:
                         peor_situacion = sit
                         
-                    detalle_deudas.append(f"{entidad_nombre} (Sit {sit}: ${monto:,}) - Período {fecha}")
+                    # Formatear el monto en miles de pesos según el estándar del BCRA
+                    monto_str = f"${monto:,.3f}" if isinstance(monto, (int, float)) else str(monto)
+                    
+                    items_tabla.append({
+                        "Denominación del deudor": denominacion,
+                        "Entidad": entidad_nombre,
+                        "Periodo": fecha,
+                        "Situación": sit,
+                        "Monto": monto_str,
+                        "Días de atraso": dias_atraso
+                    })
 
-            # Regla de corte: Si tiene Situación 4 o 5 (considerando histórico reciente)
             rechazado = False
             mensaje_resultado = f"Situación máxima detectada: {peor_situacion}."
-            
             if peor_situacion >= 4:
                 rechazado = True
                 mensaje_resultado = f"RECHAZADO POR BCRA: Posee antecedentes en Situación {peor_situacion}."
@@ -63,24 +71,29 @@ def consultar_bcra_api(identificacion):
                 "valido": True,
                 "denominacion": denominacion,
                 "peor_situacion": peor_situacion,
-                "detalle": " | ".join(detalle_deudas[:5]), # Tomar un resumen de las principales
+                "items_tabla": items_tabla,
                 "rechazado": rechazado,
                 "mensaje": mensaje_resultado
             }
             
+        elif response.status_code == 400:
+            return {
+                "valido": False,
+                "mensaje": f"El BCRA rechazó el formato ({id_limpia}). Asegúrese de ingresar un CUIL válido de 11 dígitos."
+            }
         elif response.status_code == 404:
             return {
                 "valido": True,
                 "denominacion": "NO REGISTRADO",
                 "peor_situacion": 1,
-                "detalle": "El DNI/CUIT no arroja registros en la base del BCRA.",
+                "items_tabla": [],
                 "rechazado": False,
                 "mensaje": "Sin registros previos en BCRA."
             }
         else:
             return {
                 "valido": False,
-                "mensaje": f"Error en la consulta al BCRA (Código {response.status_code})."
+                "mensaje": f"Error en la consulta al BCRA (Código HTTP {response.status_code})."
             }
 
     except requests.exceptions.Timeout:
