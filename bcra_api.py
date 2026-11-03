@@ -3,7 +3,7 @@ import requests
 def consultar_bcra_api(identificacion):
     """
     Consulta la API pública del BCRA (Central de Deudores) usando el CUIT/CUIL de 11 dígitos.
-    Extrae correctamente el periodo, la entidad, situación, monto y días de atraso.
+    Extrae correctamente el periodo, la entidad, situación, monto real y días de atraso.
     """
     try:
         id_limpia = "".join(filter(str.isdigit, str(identificacion)))
@@ -36,15 +36,27 @@ def consultar_bcra_api(identificacion):
             peor_situacion = 1
             items_tabla = []
             
-            # Recorrer correctamente los periodos y las entidades anidadas
             for periodo_obj in periodos:
-                fecha = periodo_obj.get("periodo", "") or periodo_obj.get("fecha", "")
+                # Obtener periodo (ej: "202609" y pasarlo a "09/26")
+                raw_periodo = str(periodo_obj.get("periodo", "") or periodo_obj.get("fecha", ""))
+                if len(raw_periodo) == 6:
+                    anio = raw_periodo[:4]
+                    mes = raw_periodo[4:]
+                    periodo_formato = f"{mes}/{anio[2:]}"
+                else:
+                    periodo_formato = raw_periodo
+
                 entidades = periodo_obj.get("entidades", [])
                 
                 for ent in entidades:
                     entidad_nombre = ent.get("entidad", "Entidad financiera")
                     sit = ent.get("situacion", 1)
-                    monto = ent.get("importe", 0)
+                    
+                    # Capturar el monto evaluando las posibles claves que devuelve la API
+                    monto = ent.get("monto", None)
+                    if monto is None:
+                        monto = ent.get("importe", 0)
+                        
                     dias_atraso = ent.get("diasAtraso", "N/A")
                     
                     if sit > peor_situacion:
@@ -53,14 +65,14 @@ def consultar_bcra_api(identificacion):
                     # Formatear el monto correctamente
                     try:
                         monto_num = float(monto)
-                        monto_str = f"${monto_num:,.2f}"
+                        monto_str = f"{monto_num:,.3f}" if monto_num >= 1000 else f"{monto_num:.0f}"
                     except:
                         monto_str = str(monto)
                     
                     items_tabla.append({
                         "Denominación del deudor": denominacion,
                         "Entidad": entidad_nombre,
-                        "Periodo": str(fecha),
+                        "Periodo": periodo_formato,
                         "Situación": sit,
                         "Monto": monto_str,
                         "Días de atraso": dias_atraso
