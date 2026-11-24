@@ -123,17 +123,22 @@ Fundamento Técnico: Rechazado de manera directa por la API del BCRA debido a re
                 st.session_state.analisis_resultado = dictamen_rechazo
                 st.success("📝 Rechazo registrado correctamente en la auditoría de Google Sheets.")
 
-        # SI ESTÁ APTO PARA CONTINUAR (BCRA OK)
+# SI ESTÁ APTO PARA CONTINUAR (BCRA OK)
         else:
             st.success("✅ **BCRA Aprobado / Viable:** El cliente se encuentra en condiciones de continuar con el análisis de burós.")
             
             st.markdown("---")
-            st.subheader("📂 Paso 2: Carga de Documentación Restante (Recibo, Veraz y Credixsa)")
+            st.subheader("📂 Paso 2: Carga de Documentación Restante (Recibos, Veraz y Credixsa)")
             
             with st.form("form_legajo_completo"):
                 col_a, col_b, col_c = st.columns(3)
                 with col_a:
-                    archivo_recibo = st.file_uploader("1. Recibo de Sueldo (PDF o Imagen)", type=["pdf", "png", "jpg", "jpeg"])
+                    archivos_recibo = st.file_uploader(
+                        "1. Recibo(s) de Sueldo / Haberes (PDF o Imagen)",
+                        type=["pdf", "png", "jpg", "jpeg"],
+                        accept_multiple_files=True,
+                        help="Podés subir 1 o más archivos (ej. 1.ª y 2.ª quincena, o jubilación + pensión)."
+                    )
                 with col_b:
                     archivo_veraz = st.file_uploader("2. Informe Veraz (PDF)", type=["pdf"])
                 with col_c:
@@ -142,18 +147,22 @@ Fundamento Técnico: Rechazado de manera directa por la API del BCRA debido a re
                 submitted_legajo = st.form_submit_button("Procesar Dictamen Integral con Gemini")
 
             if submitted_legajo:
-                if not (archivo_recibo or archivo_veraz or archivo_credixsa):
+                if not (archivos_recibo or archivo_veraz or archivo_credixsa):
                     st.warning("Por favor, adjunta al menos la documentación correspondiente para el análisis analítico.")
                 else:
                     with st.status("🚀 Ejecutando protocolo de análisis crediticio Silvercred...", expanded=True) as status:
                         paths_dict = {}
                         st.write("📥 Preparando archivos temporales...")
                         
-                        if archivo_recibo:
-                            suffix = os.path.splitext(archivo_recibo.name)[1]
-                            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-                                tmp.write(archivo_recibo.getvalue())
-                                paths_dict['recibo'] = tmp.name
+                        if archivos_recibo:
+                            paths_recibos = []
+                            for idx, rec in enumerate(archivos_recibo, start=1):
+                                suffix = os.path.splitext(rec.name)[1]
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                                    tmp.write(rec.getvalue())
+                                    paths_recibos.append(tmp.name)
+                            paths_dict['recibos'] = paths_recibos
+                            st.write(f"📄 Se cargaron {len(paths_recibos)} comprobante(s) de ingresos.")
 
                         if archivo_veraz:
                             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
@@ -184,12 +193,15 @@ Fundamento Técnico: Rechazado de manera directa por la API del BCRA debido a re
                             st.session_state.analisis_resultado
                         )
 
-                        for p in paths_dict.values():
-                            if os.path.exists(p):
-                                try:
-                                    os.unlink(p)
-                                except:
-                                    pass
+                        # Limpieza segura de archivos temporales (soporta rutas individuales y listas)
+                        for item in paths_dict.values():
+                            rutas = item if isinstance(item, list) else [item]
+                            for p in rutas:
+                                if os.path.exists(p):
+                                    try:
+                                        os.unlink(p)
+                                    except Exception:
+                                        pass
                                     
                         status.update(label="✅ ¡Análisis completado y registrado en Sheets con éxito!", state="complete", expanded=False)
 
