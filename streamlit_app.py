@@ -57,7 +57,7 @@ st.subheader("🔍 Paso 1: Central de Deudores BCRA")
 with st.form("form_bcra_previa"):
     col_dni1, col_dni2, col_dni3 = st.columns([2, 1, 1])
     with col_dni1:
-        nombre_cliente_input = st.text_input("Apellido y Nombre Completo del Cliente", placeholder="Ej: RAPALI, ROXANA ANALIA", value=st.session_state.nombre_cliente or "")
+        nombre_cliente_input = st.text_input("Apellido y Nombre Completo del Cliente", placeholder="Ej: MENDEZ JUAN CARLOS", value=st.session_state.nombre_cliente or "")
     with col_dni2:
         cuil_input = st.text_input("CUIL del Cliente (11 dígitos)", placeholder="Ej: 27294758882", value=st.session_state.cuil_cliente or "")
     with col_dni3:
