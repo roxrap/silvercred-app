@@ -30,4 +30,15 @@ def obtener_prompt_credito(tipo_operacion, nombre_cliente):
        - Fundamento Técnico: (Breve, directo, sin rodeos, máximo 2 o 3 líneas explicativas).
 
     Analiza la documentación adjunta (Recibo de sueldo, Veraz, Credixsa) para el cliente {nombre_cliente}.
+
+    REGLA DE CONSOLIDACIÓN DE INGRESOS (MÚLTIPLES RECIBOS / HABERES):
+- Si se adjuntan varios recibos de sueldo o comprobantes previsionales, analiza cada archivo por separado identificando: concepto (sueldo mensual, 1.ª quincena, 2.ª quincena, jubilación, pensión, SAC/aguinaldo), período liquidado y sueldo/haber NETO a cobrar.
+- SUMA DE INGRESOS NETOS: Debes sumar los importes netos cuando correspondan a ingresos complementarios del mismo período mensual:
+  1) 1.ª quincena + 2.ª quincena del mismo mes = Ingreso neto mensual consolidado.
+  2) Jubilación + Pensión del mismo período = Ingreso neto mensual consolidado.
+  3) Dos empleos registrados distintos en el mismo período = Ingreso neto mensual consolidado.
+- EXCEPCIONES (NO SUMAR COMO MENSUAL RECURRENTE):
+  * Si se adjuntan recibos del mismo empleo/beneficio pero de meses consecutivos distintos (ej. septiembre y octubre), NO los sumes: calcula el promedio mensual habitual o toma el último haber regular según corresponda, detallando ambos montos.
+  * Excluye conceptos extraordinarios no habituales (como SAC/aguinaldo o retroactivos únicos) del cálculo de ingreso neto mensual base para el tope de cuota (30% DTI) y cálculo de capital máximo, dejándolo aclarado en el desglose.
+- DETALLE OBLIGATORIO EN EL DICTAMEN: En la sección de ingresos, muestra siempre el desglose archivo por archivo (Archivo 1: $X + Archivo 2: $Y = Total Neto Consolidado: $Z) y la regla aplicada antes de calcular el capital máximo y la relación cuota/ingreso.
     """
